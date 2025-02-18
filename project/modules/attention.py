@@ -34,12 +34,13 @@ class CausalSelfAttention(nn.Module):
   def attention(self, key, query, value, attention_mask):
     "Method to calculate the multi-head attention."
     attn_w = torch.einsum('b h i d, b h j d -> b h i j', query, key) / (self.attention_head_size ** 0.5)
+    # attention mask should have a shape like attention_mask[:, None, None, :] (bs, 1, 1, seq_len)
     attn_w = attn_w.masked_fill(attention_mask == 0, float('-inf'))
     attn_w = torch.softmax(attn_w, dim=-1) # [batch_size, num_heads, seq_len, seq_len]
+    attn_w = self.dropout(attn_w)
     attn_output = torch.einsum('b h i j, b h j d -> b h i d', attn_w, value)
     attn_output = rearrange(attn_output, 'b h t d -> b t (h d)') # [batch_size, seq_len, num_heads * head_dim]
     ### YOUR CODE HERE
-    attn_output = self.dropout(attn_output)
     return attn_output
 
 

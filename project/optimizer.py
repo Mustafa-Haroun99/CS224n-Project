@@ -47,7 +47,6 @@ class AdamW(Optimizer):
                 beta1, beta2 = group["betas"]
                 eps = group["eps"]
                 weight_decay = group["weight_decay"]
-                correct_bias = group["correct_bias"]
                 
                 # Initialize the state.
                 if not state:
