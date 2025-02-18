@@ -39,6 +39,7 @@ class CausalSelfAttention(nn.Module):
     attn_output = torch.einsum('b h i j, b h j d -> b h i d', attn_w, value)
     attn_output = rearrange(attn_output, 'b h t d -> b t (h d)') # [batch_size, seq_len, num_heads * head_dim]
     ### YOUR CODE HERE
+    attn_output = self.dropout(attn_output)
     return attn_output
 
 
