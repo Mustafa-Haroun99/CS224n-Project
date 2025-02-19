@@ -42,7 +42,8 @@ class GPT2Layer(nn.Module):
         attention = self.add(hidden_states, attention, self.attention_dense, self.attention_dropout)
 
         ### Feed Forward
-        interm = self.interm_af(self.interm_dense(self.out_layer_norm(attention)))
+        attention_normed = self.out_layer_norm(attention)
+        interm = self.interm_af(self.interm_dense(attention_normed))
         out = self.add(attention, interm, self.out_dense, self.out_dropout)
         return out
     
