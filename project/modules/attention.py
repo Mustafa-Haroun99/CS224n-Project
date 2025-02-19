@@ -37,7 +37,7 @@ class CausalSelfAttention(nn.Module):
 
         # Apply Causal Mask
         seq_len = attn_w.shape[-1]
-        causal_mask = torch.triu(torch.full((seq_len, seq_len), float('-inf')), diagonal=1)
+        causal_mask = torch.triu(torch.full((seq_len, seq_len), float('-inf')), diagonal=1).to(attn_w.device)
         attn_w = attn_w + causal_mask + attention_mask
 
         attn_w = torch.softmax(attn_w / (self.attention_head_size ** 0.5), dim=-1)
