@@ -50,8 +50,7 @@ class CausalSelfAttention(nn.Module):
         self._register_masks(seq_len, key.device)
 
     qk = torch.einsum('b h i d, b h j d -> b h i j', query, key)
-    qk = torch.matmul(query, key.transpose(-1, -2))
-  
+
     # attention mask should have a shape like attention_mask[:, None, None, :] (bs, 1, 1, seq_len)
     d_k = key.shape[-1]
     attn_w = qk.masked_fill(self.attn_mask[:seq_len, :seq_len] == 1., float('-inf')) + attention_mask
