@@ -35,16 +35,15 @@ class GPT2Layer(nn.Module):
             - Apply dropout, residual connection, and layer normalization according to the plot in the assignment. (Use self.add)
             - A feed-forward layer that applies transformations to further refine the hidden states.
       """
+      ## ATTENTION BLOCK
       h_norm = self.attention_layer_norm(hidden_states)
       attn_output = self.self_attention(h_norm, attention_mask)
       attn_output = self.add(hidden_states, attn_output, self.attention_dense, self.attention_dropout)
+      ## FEED-FORWARD BLOCK
       attn_output_normed = self.out_layer_norm(attn_output)
       interm_output = self.interm_af(self.interm_dense(attn_output_normed))
       output = self.add(attn_output, interm_output, self.out_dense, self.out_dropout)
       return output
-      ### MLP LAYERS
-
-
 
     ### YOUR CODE HERE
     

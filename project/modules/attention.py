@@ -33,14 +33,25 @@ class CausalSelfAttention(nn.Module):
 
   def attention(self, key, query, value, attention_mask):
     "Method to calculate the multi-head attention."
-    attn_w = torch.einsum('b h i d, b h j d -> b h i j', query, key) 
+    print(f'key: {key.shape}')
+    # query shape: [batch_size, num_heads, seq_len, attention_head_size]
+    # key shape: [batch_size, num_heads, seq_len, attention_head_size]
+    qk = torch.einsum('b h i d, b h j d -> b h i j', query, key)
+    # Alternitavely qk = torch.matmul(query, key.transpose(-1, -2))
+    d_k = key.shape[-1]
+    attn_w = qk / (d_k ** 0.5)
+    
     # attention mask should have a shape like attention_mask[:, None, None, :] (bs, 1, 1, seq_len)
     attn_w = attn_w + attention_mask
-    attn_w = torch.softmax(attn_w / (key.shape[-1] ** 0.5) , dim=-1) # [batch_size, num_heads, seq_len, seq_len]
+    attn_w = F.softmax(attn_w , dim=-1) # [batch_size, num_heads, seq_len, seq_len]
     attn_w = self.dropout(attn_w)
+
+    # value shape: [batch_size, num_heads, seq_len, attention_head_size]
     attn_output = torch.einsum('b h i j, b h j d -> b h i d', attn_w, value)
-    attn_output = rearrange(attn_output, 'b h t d -> b t (h d)').contiguous()
-    return attn_output
+    # out = torch.cat(torch.split(attn_output, 1, dim=1), dim=-1).squeeze(1).contiguous()
+    
+    out = rearrange(attn_output.contiguous(), 'b h t d -> b t (h d)')
+    return out
 
 
   def forward(self, hidden_states, attention_mask):
