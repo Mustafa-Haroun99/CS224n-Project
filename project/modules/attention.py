@@ -20,6 +20,8 @@ class CausalSelfAttention(nn.Module):
     # implementation of transformer. Although it is a bit unusual, we empirically
     # observe that it yields better performance.
     self.dropout = nn.Dropout(config.attention_probs_dropout_prob)
+    self.max_len = None
+    self.attn_mask = None
 
   def transform(self, x, linear_layer):
     # The corresponding linear_layer of k, v, q are used to project the hidden_state (x).
@@ -35,22 +37,33 @@ class CausalSelfAttention(nn.Module):
     "Method to calculate the multi-head attention."
     # query shape: [batch_size, num_heads, seq_len, attention_head_size]
     # key shape: [batch_size, num_heads, seq_len, attention_head_size]
+    if self.max_len is None:
+      self.max_len = key.shape[-2]
+      self.attn_mask = torch.triu(torch.ones(self.max_len, self.max_len), 1).to(key.device)
+
     qk = torch.einsum('b h i d, b h j d -> b h i j', query, key)
-    # qk = torch.matmul(query, key.transpose(-1, -2))
+    qk = torch.matmul(query, key.transpose(-1, -2))
+    print(qk.shape)
+  
     # Alternitavely 
 
     # attention mask should have a shape like attention_mask[:, None, None, :] (bs, 1, 1, seq_len)
     d_k = key.shape[-1]
-    attn_w = qk + attention_mask
+    attn_w = qk.masked_fill(self.attn_mask[:key.size(-2), :key.size(-2)] == 1., float('-inf'))
     attn_w = F.softmax(attn_w/ (d_k ** 0.5) , dim=-1) # [batch_size, num_heads, seq_len, seq_len]
     attn_w = self.dropout(attn_w)
 
     # value shape: [batch_size, num_heads, seq_len, attention_head_size]
-    out = torch.matmul(attn_w, value)
-    # out= torch.einsum('b h i j, b h j d -> b h i d', attn_w, value).contiguous()
-    out = rearrange(out.contiguous(), 'b h t d -> b t (h d)')
+    # out = torch.matmul(attn_w, value)
+
+    # Multiplying Attention weights with value
+    out= torch.einsum('b h i j, b h j d -> b h i d', attn_w, value)
+    
+    # Concatenating Step
+    out = rearrange(out, 'b h t d -> b t (h d)')
     # out = torch.cat(torch.split(out, 1, dim=1), dim=-1).squeeze(1).contiguous()
     return out
+  
 
   def forward(self, hidden_states, attention_mask):
     """
@@ -68,3 +81,4 @@ class CausalSelfAttention(nn.Module):
     # Calculate the multi-head attention.
     attn_value = self.attention(key_layer, query_layer, value_layer, attention_mask)
     return attn_value
+  

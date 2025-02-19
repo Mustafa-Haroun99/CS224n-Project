@@ -33,6 +33,7 @@ class GPT2Model(GPTPreTrainedModel):
 
     # GPT-2 layers.
     self.gpt_layers = nn.ModuleList([GPT2Layer(config) for _ in range(config.num_hidden_layers)])
+    #self.gpt_layers = nn.ModuleList([GPT2Layer(config) for _ in range(2)])
 
     # [CLS] token transformations.
     self.pooler_dense = nn.Linear(config.hidden_size, config.hidden_size)
@@ -47,21 +48,12 @@ class GPT2Model(GPTPreTrainedModel):
     input_shape = input_ids.size()
     seq_length = input_shape[1]
 
-    inputs_embeds = None
-
-    ### YOUR CODE HERE
     inputs_embeds = self.word_embedding(input_ids)
-
-
     pos_ids = self.position_ids[:, :seq_length]
-    pos_embeds = None
-
-    ### TODO: Use pos_ids to get position embedding from self.pos_embedding into pos_embeds.
-    ###       Then, add two embeddings together; then apply dropout and return.
-    ### YOUR CODE HERE
     pos_embeds = self.pos_embedding(pos_ids)
-    return self.embed_dropout(inputs_embeds + pos_embeds)
+    out = self.embed_dropout(inputs_embeds + pos_embeds)
 
+    return out
 
   def encode(self, hidden_states, attention_mask):
     """
@@ -91,6 +83,8 @@ class GPT2Model(GPTPreTrainedModel):
 
     # Feed to a transformer (a stack of GPTLayers).
     sequence_output = self.encode(embedding_output, attention_mask=attention_mask)
+    
+    # Apply final layer normalization
     sequence_output = self.final_layer_norm(sequence_output)
 
     # Get the hidden state of the final token.
@@ -107,7 +101,7 @@ class GPT2Model(GPTPreTrainedModel):
       return hidden_state(s) * E^T
     """
     ### YOUR CODE HERE
-    return hidden_state @ self.word_embedding.weight.T
+    return torch.einsum('b t d, v d -> b t v', hidden_state, self.word_embedding.weight)
 
 
   @classmethod

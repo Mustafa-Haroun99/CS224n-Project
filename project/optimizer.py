@@ -50,24 +50,28 @@ class AdamW(Optimizer):
                 
                 # Initialize the state.
                 if not state:
-                    t = 0
+                    t = 1
                     v = torch.zeros_like(p.data).to(p.data.device)
                     m = torch.zeros_like(p.data).to(p.data.device)
                 else:
                     m = state["m"].to(p.data.device)
                     v = state["v"].to(p.data.device)
                     t = state["t"]
+                    t += 1
                 
-                t += 1
+                state['t'] = t
+                # Building the bias correction factors.
                 bc_1 = 1 - beta1 ** t
                 bc_2 = 1 - beta2 ** t
+                # Update the moving averages with the current gradient and bias correction.
                 m = beta1 * m + (1 - beta1) * grad
-                v = beta2 * v + (1 - beta2) * grad ** 2
-                alpha_t = alpha * math.sqrt(bc_2) / bc_1
-                p_new_t = p.data - alpha_t * m / (torch.sqrt(v) + eps)
-                p.data = p_new_t - alpha * weight_decay * p.data
                 state['m'] = m
+                v = beta2 * v + (1 - beta2) * grad ** 2
                 state['v'] = v
-                state['t'] = t
+                alpha_t = alpha * math.sqrt(bc_2) / bc_1
+                # Creating New update parameter
+                p_new_t = p.data - alpha_t * m / (torch.sqrt(v) + eps)
+                # Apply weight decay
+                p.data = p_new_t - alpha * weight_decay * p.data                
 
         return loss
