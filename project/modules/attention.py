@@ -49,13 +49,12 @@ class CausalSelfAttention(nn.Module):
     if self.attn_mask is None or self.max_len < seq_len:
         self._register_masks(seq_len, key.device)
 
-
     qk = torch.einsum('b h i d, b h j d -> b h i j', query, key)
     qk = torch.matmul(query, key.transpose(-1, -2))
   
     # attention mask should have a shape like attention_mask[:, None, None, :] (bs, 1, 1, seq_len)
     d_k = key.shape[-1]
-    attn_w = qk.masked_fill(self.attn_mask[:seq_len, :seq_len] == 1., float('-inf'))
+    attn_w = qk.masked_fill(self.attn_mask[:seq_len, :seq_len] == 1., float('-inf')) + attention_mask
     attn_w = self.dropout(F.softmax(attn_w/ (d_k ** 0.5) , dim=-1)) # [batch_size, num_heads, seq_len, seq_len]
 
     # value shape: [batch_size, num_heads, seq_len, attention_head_size]
@@ -63,7 +62,7 @@ class CausalSelfAttention(nn.Module):
     out= torch.einsum('b h i j, b h j d -> b h i d', attn_w, value)
     
     # Concatenating Step
-    out = rearrange(out, 'b h t d -> b t (h d)')
+    out = rearrange(out, 'b h t d -> b t (h d)') 
     return out
   
 
