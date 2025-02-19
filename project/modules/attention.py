@@ -40,10 +40,7 @@ class CausalSelfAttention(nn.Module):
     attn_w = self.dropout(attn_w)
     attn_output = torch.einsum('b h i j, b h j d -> b h i d', attn_w, value)
     attn_output = rearrange(attn_output, 'b h t d -> b t (h d)').contiguous()
-    # attn_output = rearrange(attn_output, 'b h t d -> b t h d').contiguous()
-    # attn_output = rearrange(attn_output, 'b t h d -> b t (h d)')
     return attn_output
-
 
 
   def forward(self, hidden_states, attention_mask):
