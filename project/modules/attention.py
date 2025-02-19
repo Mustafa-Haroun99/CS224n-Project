@@ -36,7 +36,7 @@ class CausalSelfAttention(nn.Module):
     "Method to calculate the multi-head attention."
     attn_w = torch.einsum('b h i d, b h j d -> b h i j', query, key) 
 
-    # 2. Apply Causal Mask (Prevents attention to future tokens)
+    # Apply Causal Mask
     seq_len = attn_w.shape[-1]
     causal_mask = torch.triu(torch.full((seq_len, seq_len), float('-inf')), diagonal=1)
     attn_w = attn_w + causal_mask + attention_mask
