@@ -36,15 +36,19 @@ class CausalSelfAttention(nn.Module):
     proj = rearrange(proj, 'b t h d -> b h t d')
     return proj
 
+  def _register_masks(self, seq_len, device):
+      max_len = seq_len
+      self.max_len = torch.tensor(max_len, dtype=torch.int, device=device)
+      self.attn_mask = torch.triu(torch.ones(max_len, max_len), 1,).to(device)
+      
   def attention(self, key, query, value, attention_mask):
     "Method to calculate the multi-head attention."
     # query shape: [batch_size, num_heads, seq_len, attention_head_size]
     # key shape: [batch_size, num_heads, seq_len, attention_head_size]
     seq_len = key.size(-2)
-    if self.max_len is None:
-      max_len = seq_len
-      self.max_len = torch.tensor(max_len, dtype=torch.int, device=key.device)
-      self.attn_mask = torch.triu(torch.ones(max_len, max_len), 1,).to(key.device)
+    if self.attn_mask is None or self.max_len < seq_len:
+        self._register_masks(seq_len, key.device)
+
 
     qk = torch.einsum('b h i d, b h j d -> b h i j', query, key)
     qk = torch.matmul(query, key.transpose(-1, -2))
@@ -52,18 +56,14 @@ class CausalSelfAttention(nn.Module):
     # attention mask should have a shape like attention_mask[:, None, None, :] (bs, 1, 1, seq_len)
     d_k = key.shape[-1]
     attn_w = qk.masked_fill(self.attn_mask[:seq_len, :seq_len] == 1., float('-inf'))
-    attn_w = F.softmax(attn_w/ (d_k ** 0.5) , dim=-1) # [batch_size, num_heads, seq_len, seq_len]
-    attn_w = self.dropout(attn_w)
+    attn_w = self.dropout(F.softmax(attn_w/ (d_k ** 0.5) , dim=-1)) # [batch_size, num_heads, seq_len, seq_len]
 
     # value shape: [batch_size, num_heads, seq_len, attention_head_size]
-    # out = torch.matmul(attn_w, value)
-
     # Multiplying Attention weights with value
     out= torch.einsum('b h i j, b h j d -> b h i d', attn_w, value)
     
     # Concatenating Step
     out = rearrange(out, 'b h t d -> b t (h d)')
-    # out = torch.cat(torch.split(out, 1, dim=1), dim=-1).squeeze(1).contiguous()
     return out
   
 
