@@ -1,5 +1,6 @@
-import torch
 
+import torch
+import torch.nn.functional as F
 from einops import rearrange
 from torch import nn
 
@@ -32,10 +33,31 @@ class CausalSelfAttention(nn.Module):
     return proj
 
   def attention(self, key, query, value, attention_mask):
+    "Method to calculate the multi-head attention."
+    # attn_w = torch.einsum('b h i d, b h j d -> b h i j', query, key) 
+    # print(f'masking: {attention_mask}')
+    # # attention mask should have a shape like attention_mask[:, None, None, :] (bs, 1, 1, seq_len)
+    # attn_w = attn_w + attention_mask
+    # attn_w = torch.softmax(attn_w / (key.shape[-1] ** 0.5) , dim=-1) # [batch_size, num_heads, seq_len, seq_len]
+    # attn_w = self.dropout(attn_w)
+    # attn_output = torch.einsum('b h i j, b h j d -> b h i d', attn_w, value)
+    # attn_output = rearrange(attn_output, 'b h t d -> b t (h d)').contiguous()
+    # return attn_output
+    
+    attn_w = torch.einsum('b h i d, b h j d -> b h i j', query, key) 
 
-    ### YOUR CODE HERE
-    raise NotImplementedError
+    # 2. Apply Causal Mask (Prevents attention to future tokens)
+    seq_len = attn_w.shape[-1]
+    causal_mask = torch.triu(torch.full((seq_len, seq_len), float('-inf')), diagonal=1)
+    attn_w = attn_w + causal_mask + attention_mask
 
+    attn_w = torch.softmax(attn_w / (self.attention_head_size ** 0.5), dim=-1)
+    attn_w = torch.nan_to_num(attn_w, nan=0.0)
+    attn_w = self.dropout(attn_w)
+    attn_output = torch.einsum('b h i j, b h j d -> b h i d', attn_w, value)
+    attn_output = rearrange(attn_output, 'b h t d -> b t (h d)')
+
+    return attn_output
 
   def forward(self, hidden_states, attention_mask):
     """
