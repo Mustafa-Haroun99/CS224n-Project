@@ -38,10 +38,9 @@ class GPT2Layer(nn.Module):
       h_norm = self.attention_layer_norm(hidden_states)
       attn_output = self.self_attention(h_norm, attention_mask)
       attn_output = self.add(hidden_states, attn_output, self.attention_dense, self.attention_dropout)
-      attn_output_n = self.attention_layer_norm(attn_output)
-      inter_output = self.interm_af(self.interm_dense(attn_output_n))
-      out_output = self.add(attn_output, inter_output, self.out_dense, self.out_dropout)
-      output = self.out_layer_norm(out_output)
+      attn_output_normed = self.out_layer_norm(attn_output)
+      interm_output = self.interm_af(self.interm_dense(attn_output_normed))
+      output = self.add(attn_output, interm_output, self.out_dense, self.out_dropout)
       return output
       ### MLP LAYERS
 
