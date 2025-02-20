@@ -73,9 +73,7 @@ class ParaphraseGPT(nn.Module):
     'Takes a batch of sentences and produces embeddings for them.'
     outputs = self.gpt(input_ids=input_ids, attention_mask=attention_mask)
     last_hidden_state = outputs['last_hidden_state']
-
-    logits = self.paraphrase_detection_head(last_hidden_state[:, -1, :])
-    
+    logits = self.paraphrase_detection_head(last_hidden_state[:, -1, :])  
     return logits
 
 
@@ -134,6 +132,7 @@ def train(args):
       optimizer.zero_grad()
       logits = model(b_ids, b_mask)
       preds = torch.argmax(logits, dim=1)
+      # TODO: check if this is correct
       labels = torch.where(labels == 8505, torch.tensor(1, device=device), torch.tensor(0, device=device))
       loss = F.cross_entropy(logits, labels, reduction='mean')
       loss.backward()
@@ -186,6 +185,7 @@ def test(args):
   para_test_dataloader = DataLoader(para_test_data, shuffle=True, batch_size=args.batch_size,
                                     collate_fn=para_test_data.collate_fn)
 
+  print(dev_para_y_pred)
   dev_para_acc, _, dev_para_y_pred, _, dev_para_sent_ids = model_eval_paraphrase(para_dev_dataloader, model, device)
   print(f"dev paraphrase acc :: {dev_para_acc :.3f}")
   test_para_y_pred, test_para_sent_ids = model_test_paraphrase(para_test_dataloader, model, device)
@@ -204,8 +204,8 @@ def test(args):
 def get_args():
   parser = argparse.ArgumentParser()
 
-  parser.add_argument("--para_train", type=str, default="data/quora-train.csv")
-  parser.add_argument("--para_dev", type=str, default="data/quora-dev.csv")
+  parser.add_argument("--para_train", type=str, default="data/quora-train-tiny.csv")
+  parser.add_argument("--para_dev", type=str, default="data/quora-dev-tiny.csv")
   parser.add_argument("--para_test", type=str, default="data/quora-test-student.csv")
   parser.add_argument("--para_dev_out", type=str, default="predictions/para-dev-output.csv")
   parser.add_argument("--para_test_out", type=str, default="predictions/para-test-output.csv")

@@ -37,6 +37,9 @@ def model_eval_paraphrase(dataloader, model, device):
     y_pred.extend(preds)
     sent_ids.extend(b_sent_ids)
 
+  # TODO: check if this is ok
+  label_mapping = {0: 3919, 1: 8505}
+  y_pred = np.array([label_mapping[i] for i in y_pred])
   f1 = f1_score(y_true, y_pred, average='macro')
   acc = accuracy_score(y_true, y_pred)
 
