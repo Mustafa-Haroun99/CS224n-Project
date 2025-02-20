@@ -156,7 +156,17 @@ def train(args):
 @torch.no_grad()
 def test(args):
   """Evaluate your model on the dev and test datasets; save the predictions to disk."""
-  device = torch.device('cuda') if args.use_gpu else torch.device('cpu')
+  # device = torch.device('cuda') if args.use_gpu else torch.device('cpu')
+  if args.use_gpu:
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+    elif torch.backends.mps.is_available():
+        device = torch.device("mps")
+    else:
+        device = torch.device("cpu")
+  else:
+      device = torch.device("cpu")
+
   saved = torch.load(args.filepath)
 
   model = ParaphraseGPT(saved['args'])

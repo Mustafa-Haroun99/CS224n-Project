@@ -26,25 +26,24 @@ class GPT2Layer(nn.Module):
         Applies residual connection with dropout after a dense layer.
         """
         return input + dropout(dense_layer(output))
-
+    
+    
     def forward(self, hidden_states, attention_mask):
-      """
-      TODO: Implement the forward pass. Some key points to consider:
+        """
+        TODO: Implement the forward pass. Some key points to consider:
             - A multi-head attention layer (CausalSelfAttention) that computes self-attention based on masked inputs.
             - Layer normalization applied *before* the attention layer and feed-forward layer.
             - Apply dropout, residual connection, and layer normalization according to the plot in the assignment. (Use self.add)
             - A feed-forward layer that applies transformations to further refine the hidden states.
-      """
-      h_norm = self.attention_layer_norm(hidden_states)
-      attn_output = self.self_attention(h_norm, attention_mask)
-      attn_output = self.add(hidden_states, attn_output, self.attention_dense, self.attention_dropout)
-      attn_output_normed = self.out_layer_norm(attn_output)
-      interm_output = self.interm_af(self.interm_dense(attn_output_normed))
-      output = self.add(attn_output, interm_output, self.out_dense, self.out_dropout)
-      return output
-      ### MLP LAYERS
+        """
 
+        hidden_normed = self.attention_layer_norm(hidden_states)
+        attention = self.self_attention(hidden_normed, attention_mask)
+        attention = self.add(hidden_states, attention, self.attention_dense, self.attention_dropout)
 
-
-    ### YOUR CODE HERE
+        ### Feed Forward
+        attention_normed = self.out_layer_norm(attention)
+        interm = self.interm_af(self.interm_dense(attention_normed))
+        out = self.add(attention, interm, self.out_dense, self.out_dropout)
+        return out
     

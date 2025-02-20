@@ -1,4 +1,3 @@
-
 import torch
 import torch.nn.functional as F
 from einops import rearrange
@@ -21,6 +20,11 @@ class CausalSelfAttention(nn.Module):
     # implementation of transformer. Although it is a bit unusual, we empirically
     # observe that it yields better performance.
     self.dropout = nn.Dropout(config.attention_probs_dropout_prob)
+    max_len = None
+    attn_mask = None
+    self.register_buffer("attn_mask", attn_mask, persistent=False)
+    self.register_buffer("max_len", max_len, persistent=False)
+
 
   def transform(self, x, linear_layer):
     # The corresponding linear_layer of k, v, q are used to project the hidden_state (x).
@@ -32,22 +36,34 @@ class CausalSelfAttention(nn.Module):
     proj = rearrange(proj, 'b t h d -> b h t d')
     return proj
 
+  def _register_masks(self, seq_len, device):
+      max_len = seq_len
+      self.max_len = torch.tensor(max_len, dtype=torch.int, device=device)
+      self.attn_mask = torch.triu(torch.ones(max_len, max_len), 1,).to(device)
+      
   def attention(self, key, query, value, attention_mask):
     "Method to calculate the multi-head attention."
-    attn_w = torch.einsum('b h i d, b h j d -> b h i j', query, key) 
+    # query shape: [batch_size, num_heads, seq_len, attention_head_size]
+    # key shape: [batch_size, num_heads, seq_len, attention_head_size]
+    seq_len = key.size(-2)
+    if self.attn_mask is None or self.max_len < seq_len:
+        self._register_masks(seq_len, key.device)
 
-    # Apply Causal Mask
-    seq_len = attn_w.shape[-1]
-    causal_mask = torch.triu(torch.full((seq_len, seq_len), float('-inf')), diagonal=1)
-    attn_w = attn_w + causal_mask + attention_mask
+    qk = torch.einsum('b h i d, b h j d -> b h i j', query, key)
 
-    attn_w = torch.softmax(attn_w / (self.attention_head_size ** 0.5), dim=-1)
-    attn_w = torch.nan_to_num(attn_w, nan=0.0)
-    attn_w = self.dropout(attn_w)
-    attn_output = torch.einsum('b h i j, b h j d -> b h i d', attn_w, value)
-    attn_output = rearrange(attn_output, 'b h t d -> b t (h d)')
+    # attention mask should have a shape like attention_mask[:, None, None, :] (bs, 1, 1, seq_len)
+    d_k = key.shape[-1]
+    attn_w = qk.masked_fill(self.attn_mask[:seq_len, :seq_len] == 1., float('-inf')) + attention_mask
+    attn_w = self.dropout(F.softmax(attn_w/ (d_k ** 0.5) , dim=-1)) # [batch_size, num_heads, seq_len, seq_len]
 
-    return attn_output
+    # value shape: [batch_size, num_heads, seq_len, attention_head_size]
+    # Multiplying Attention weights with value
+    out= torch.einsum('b h i j, b h j d -> b h i d', attn_w, value)
+    
+    # Concatenating Step
+    out = rearrange(out, 'b h t d -> b t (h d)') 
+    return out
+  
 
   def forward(self, hidden_states, attention_mask):
     """
@@ -65,3 +81,4 @@ class CausalSelfAttention(nn.Module):
     # Calculate the multi-head attention.
     attn_value = self.attention(key_layer, query_layer, value_layer, attention_mask)
     return attn_value
+  
