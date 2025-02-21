@@ -49,6 +49,7 @@ class SonnetGPT(nn.Module):
     self.gpt = GPT2Model.from_pretrained(model=args.model_size, d=args.d, l=args.l, num_heads=args.num_heads)
     self.tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
     self.tokenizer.pad_token = self.tokenizer.eos_token
+    self.sonnet_generation_head = nn.Linear(args.d, self.tokenizer.vocab_size)
 
     # By default, fine-tune the full model. TODO: this is maybe not idea.
     for param in self.gpt.parameters():
@@ -60,9 +61,9 @@ class SonnetGPT(nn.Module):
     not just the last token! This will allow our model to learn the natural language distribution that composes sonnets,
     not just the distribution over next tokens for the last token!
     """
-    ### YOUR CODE HERE
-    raise NotImplementedError
-
+    outputs = self.gpt(input_ids, attention_mask)
+    logits = self.sonnet_generation_head(outputs['last_hidden_state'])
+    return logits
 
   def get_device(self):
     for param in self.gpt.parameters():
@@ -140,6 +141,10 @@ def train(args):
 
   # Create the held-out dataset: these only have the first 3 lines. Your job is to fill in the rest!
   held_out_sonnet_dataset = SonnetsDataset(args.held_out_sonnet_path)
+  val_sonnet_dataloader = DataLoader(held_out_sonnet_dataset, shuffle=True, batch_size=args.batch_size,
+                                 collate_fn=held_out_sonnet_dataset.collate_fn)
+
+  best_val_loss = float('inf')
 
   args = add_arguments(args)
   model = SonnetGPT(args)
@@ -181,8 +186,28 @@ def train(args):
       output = model.generate(encoding['input_ids'], temperature=args.temperature, top_p=args.top_p)
       print(f'{batch[1]}{output[1]}\n\n')
 
-    # TODO: consider a stopping condition to prevent overfitting on the small dataset of sonnets.
-    save_model(model, optimizer, args, f'{epoch}_{args.filepath}')
+    val_loss = 0
+    num_val_batches = 0
+    with torch.no_grad():
+      for batch in tqdm(val_sonnet_dataloader, desc=f'val-{epoch}', disable=TQDM_DISABLE):
+        b_ids, b_mask = batch['token_ids'], batch['attention_mask']
+        b_ids = b_ids.to(device)
+        b_mask = b_mask.to(device)
+
+        logits = model(b_ids, b_mask)
+        logits = rearrange(logits[:, :-1].contiguous(), 'b t d -> (b t) d')  # Ignore the last prediction in the sequence.
+        labels = b_ids[:, 1:].contiguous().flatten()  # Ignore the first token to compose the labels.
+        loss = F.cross_entropy(logits, labels, reduction='mean')
+
+        val_loss += loss.item()
+        num_val_batches += 1
+
+    val_loss = val_loss / num_val_batches
+    print(f"Epoch {epoch}: validation loss :: {val_loss :.3f}.")
+
+    if val_loss < best_val_loss:
+      best_val_loss = val_loss
+      save_model(model, optimizer, args, f'{epoch}_{args.filepath}')
 
 
 @torch.no_grad()
