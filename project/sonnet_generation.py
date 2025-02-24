@@ -49,6 +49,7 @@ class SonnetGPT(nn.Module):
     self.gpt = GPT2Model.from_pretrained(model=args.model_size, d=args.d, l=args.l, num_heads=args.num_heads)
     self.tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
     self.tokenizer.pad_token = self.tokenizer.eos_token
+    self.linear = nn.Linear(args.d, self.tokenizer.vocab_size)
 
     # By default, fine-tune the full model. TODO: this is maybe not idea.
     for param in self.gpt.parameters():
@@ -61,7 +62,12 @@ class SonnetGPT(nn.Module):
     not just the distribution over next tokens for the last token!
     """
     ### YOUR CODE HERE
-    raise NotImplementedError
+    outputs = self.gpt(input_ids, attention_mask=attention_mask)
+    # logits = outputs['last_hidden_state']
+    # logits = self.linear(logits)
+
+    # return logits
+    return self.gpt.hidden_state_to_token(outputs['last_hidden_state'])
 
 
   def get_device(self):

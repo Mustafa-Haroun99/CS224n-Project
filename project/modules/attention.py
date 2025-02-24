@@ -53,6 +53,9 @@ class CausalSelfAttention(nn.Module):
 
     # attention mask should have a shape like attention_mask[:, None, None, :] (bs, 1, 1, seq_len)
     d_k = key.shape[-1]
+    if attention_mask is None:
+        attention_mask = 0
+ 
     attn_w = qk.masked_fill(self.attn_mask[:seq_len, :seq_len] == 1., float('-inf')) + attention_mask
     attn_w = self.dropout(F.softmax(attn_w/ (d_k ** 0.5) , dim=-1)) # [batch_size, num_heads, seq_len, seq_len]
 
@@ -62,6 +65,7 @@ class CausalSelfAttention(nn.Module):
     
     # Concatenating Step
     out = rearrange(out, 'b h t d -> b t (h d)') 
+  
     return out
   
 
