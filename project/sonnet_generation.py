@@ -20,6 +20,8 @@ from tqdm import tqdm
 from transformers import GPT2Tokenizer
 from einops import rearrange
 
+from smart_pytorch import SMARTLoss, kl_loss, sym_kl_loss
+
 from datasets import (
   SonnetsDataset,
 )
@@ -50,20 +52,37 @@ class SonnetGPT(nn.Module):
     self.tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
     self.tokenizer.pad_token = self.tokenizer.eos_token
     self.sonnet_generation_head = nn.Linear(args.d, self.tokenizer.vocab_size)
+    self.smart_weight = args.smart_weight
 
     # By default, fine-tune the full model. TODO: this is maybe not idea.
     for param in self.gpt.parameters():
       param.requires_grad = True
 
-  def forward(self, input_ids, attention_mask):
+  def forward(self, input_ids, attention_mask, training=True):
     """
     This is similar to the forward for ParaphraseGPT, but we now want to produce a logit for each token in our sequence;
     not just the last token! This will allow our model to learn the natural language distribution that composes sonnets,
     not just the distribution over next tokens for the last token!
     """
-    outputs = self.gpt(input_ids, attention_mask)
-    logits = self.sonnet_generation_head(outputs['last_hidden_state'])
-    return logits
+    embed = self.gpt.embed(input_ids)
+    def eval(embed):
+      sequence_output = self.gpt.encode(embed, attention_mask=attention_mask)
+      outputs = self.gpt.final_layer_norm(sequence_output)
+      logits = self.sonnet_generation_head(outputs)
+      return logits
+
+    # Compute initial (unperturbed) state
+    logits = eval(embed)
+    loss = 0
+
+    if training:
+      # Define SMART loss
+      smart_loss_fn = SMARTLoss(eval_fn=eval, loss_fn=kl_loss, loss_last_fn=sym_kl_loss)
+      # Apply smart loss
+      loss = self.smart_weight * smart_loss_fn(embed, logits)
+
+    return logits, loss
+
 
   def get_device(self):
     for param in self.gpt.parameters():
@@ -84,7 +103,7 @@ class SonnetGPT(nn.Module):
 
     for _ in range(max_length):
       # Forward pass to get logits
-      logits_sequence = self.forward(token_ids, attention_mask)
+      logits_sequence, smart_loss = self.forward(token_ids, attention_mask, False)
       logits_last_token = logits_sequence[:, -1, :] / temperature  # Apply temperature scaling
 
       # Convert logits to probabilities
@@ -167,14 +186,15 @@ def train(args):
 
       # Compute the loss, gradients, and update the model's parameters.
       optimizer.zero_grad()
-      logits = model(b_ids, b_mask)
+      logits, smart_loss = model(b_ids, b_mask)
       logits = rearrange(logits[:, :-1].contiguous(), 'b t d -> (b t) d')  # Ignore the last prediction in the sequence.
       labels = b_ids[:, 1:].contiguous().flatten()  # Ignore the first token to compose the labels.
       loss = F.cross_entropy(logits, labels, reduction='mean')
+      loss += smart_loss
       loss.backward()
       optimizer.step()
 
-      train_loss += loss.item()
+      train_loss += loss.item() - smart_loss
       num_batches += 1
 
     train_loss = train_loss / num_batches
@@ -194,7 +214,7 @@ def train(args):
         b_ids = b_ids.to(device)
         b_mask = b_mask.to(device)
 
-        logits = model(b_ids, b_mask)
+        logits, smart_loss = model(b_ids, b_mask, False)
         logits = rearrange(logits[:, :-1].contiguous(), 'b t d -> (b t) d')  # Ignore the last prediction in the sequence.
         labels = b_ids[:, 1:].contiguous().flatten()  # Ignore the first token to compose the labels.
         loss = F.cross_entropy(logits, labels, reduction='mean')
@@ -261,6 +281,8 @@ def get_args():
   parser.add_argument("--lr", type=float, help="learning rate", default=1e-5)
   parser.add_argument("--model_size", type=str, help="The model size as specified on hugging face.",
                       choices=['gpt2', 'gpt2-medium', 'gpt2-large', 'gpt2-xl'], default='gpt2')
+
+  parser.add_argument("--smart_weight", type=float, default=0.0, help="Weight for SMART loss")
 
   args = parser.parse_args()
   return args
