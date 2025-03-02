@@ -77,8 +77,6 @@ class ParaphraseGPT(nn.Module):
     return logits
 
 
-
-
 def save_model(model, optimizer, args, filepath):
   save_info = {
     'model': model.state_dict(),
