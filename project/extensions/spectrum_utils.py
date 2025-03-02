@@ -20,9 +20,11 @@ def freeze_model(model, file_name):
 
     freeze_and_unfreeze_parameters(model, unfrozen_parameters)
 
-if __name__ == '__main__':
 
-    # let's do a quick sanity check
-    for name, param in model.named_parameters():
-        if param.requires_grad:
-            print(name, param.requires_grad)
+
+
+# if __name__ == '__main__':
+#     # let's do a quick sanity check
+#     for name, param in model.named_parameters():
+#         if param.requires_grad:
+#             print(name, param.requires_grad)
