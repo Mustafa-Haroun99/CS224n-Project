@@ -13,7 +13,8 @@ import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
 from transformers import GPT2Tokenizer
 from sklearn.metrics import f1_score, accuracy_score
-from smart_pytorch import SMARTLoss, kl_loss, sym_kl_loss
+from smart_pytorch import SMARTLoss
+from loss import kl_loss, sym_kl_loss
 
 from models.gpt2 import GPT2Model
 from optimizer import AdamW

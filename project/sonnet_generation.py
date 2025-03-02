@@ -20,7 +20,8 @@ from tqdm import tqdm
 from transformers import GPT2Tokenizer
 from einops import rearrange
 
-from smart_pytorch import SMARTLoss, kl_loss, sym_kl_loss
+from smart_pytorch import SMARTLoss
+from loss import kl_loss, sym_kl_loss
 
 from datasets import (
   SonnetsDataset,
