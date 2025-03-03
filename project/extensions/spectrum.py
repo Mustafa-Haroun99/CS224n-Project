@@ -9,45 +9,36 @@ from tqdm import tqdm
 import os
 import time
 
+
+import re
+
+def freeze_model(model, file_name):
+    with open(file_name, "r") as fin:
+        yaml_parameters = fin.read()
+   
+    unfrozen_parameters = []
+    for line in yaml_parameters.splitlines():
+        if line.startswith("- "):
+            unfrozen_parameters.append(line.split("- ")[1])
+
+        def freeze_and_unfreeze_parameters(model, unfrozen_parameters):
+            # freeze all parameters
+            for param in model.parameters():
+                param.requires_grad = False
+            # unfreeze Spectrum parameters
+            for name, param in model.named_parameters():
+                if any(re.match(unfrozen_param, name) for unfrozen_param in unfrozen_parameters):
+                    param.requires_grad = True
+
+    freeze_and_unfreeze_parameters(model, unfrozen_parameters)
+
+
 class ModelModifier:
-    def __init__(self, model_name=None, top_percent=50, batch_size=1):
+    def __init__(self, model, model_name=None, top_percent=50, batch_size=1):
         self.model_name = model_name
         self.top_percent = top_percent
         self.batch_size = batch_size
-
-        if model_name:
-            try:
-                self.model = AutoModelForCausalLM.from_pretrained(
-                    model_name, 
-                    torch_dtype=torch.float32, 
-                    low_cpu_mem_usage=True, 
-                    trust_remote_code=True, 
-                    device_map="auto"
-                )
-            except KeyError as e:
-                print(f"Error loading model: {e}")
-                print("Attempting to load with custom configuration...")
-                config = AutoConfig.from_pretrained(model_name)
-                config.rope_scaling = {"type": "linear", "factor": 1.0}
-                self.model = AutoModelForCausalLM.from_pretrained(
-                    model_name,
-                    config=config,
-                    torch_dtype=torch.float32,
-                    low_cpu_mem_usage=True,
-                    trust_remote_code=True,
-                    device_map="auto"
-                )
-            
-            # Check if the model config has rope_scaling
-            if not hasattr(self.model.config, 'rope_scaling'):
-                self.model.config.rope_scaling = {'type': 'linear'}
-            elif not isinstance(self.model.config.rope_scaling, dict):
-                self.model.config.rope_scaling = {'type': 'linear'}
-            elif 'type' not in self.model.config.rope_scaling:
-                self.model.config.rope_scaling['type'] = 'linear'
-        else:
-            self.model = None
-
+        self.model = model
         self.layer_snr = {}
         self.layer_types = []
 
@@ -132,9 +123,9 @@ class ModelModifier:
         total_time = end_time - start_time
         print(f"Total time taken: {total_time:.2f} seconds")
 
-    def save_snr_to_json(self):
+    def save_snr_to_json(self, directory=None):
         model_name_slug = self.model_name.replace('/', '-').replace('_', '-')
-        directory = 'model_snr_results'
+        directory = directory
         filename = os.path.join(directory, f'snr_results_{model_name_slug}.json')
         
         # Ensure the directory exists
@@ -170,8 +161,9 @@ class ModelModifier:
             num_top_layers = int(len(layers) * top_percent / 100)
             top_layers_by_type[layer_type] = [layer[0] for layer in layers_sorted[:num_top_layers]]
         # Modify the yaml_filename to include the input json name and top_percent
+        
         json_file_base = os.path.splitext(os.path.basename(json_filename))[0]
-        yaml_filename = f"{json_file_base}_unfrozenparameters_{top_percent}percent.yaml"
+        yaml_filename = f"extensions/spectrum/model_snr_results/{json_file_base}_unfrozenparameters_{top_percent}percent.yaml"
         with open(yaml_filename, 'w') as file:
             file.write("unfrozen_parameters:\n")
             file.write("- ^lm_head.weight$\n")
@@ -201,34 +193,3 @@ class ModelModifier:
         with open(filename, 'w') as file:
             json.dump(all_snr_layers, file, indent=4)
         print(f"All SNR layers sorted and saved to {filename}")
-
-def main():
-    # Handle command-line arguments
-    parser = argparse.ArgumentParser(description="Process SNR data for layers.")
-    parser.add_argument('--model-name', type=str, required=True, help='Model name or path to the model')
-    parser.add_argument('--top-percent', type=int, default=None, help='Top percentage of layers to select, overriding the default')
-    args = parser.parse_args()
-
-    # Check for existing SNR results file
-    model_name_slug = args.model_name.replace('/', '-').replace('_', '-')
-    snr_file_path = os.path.join('model_snr_results', f'snr_results_{model_name_slug}.json')
-
-    if os.path.exists(snr_file_path):
-        print(f"Found existing SNR results file for {args.model_name}")
-        modifier = ModelModifier(top_percent=args.top_percent)
-        modifier.generate_unfrozen_params_yaml(snr_file_path, args.top_percent)
-    else:
-        print(f"No existing SNR results file found for {args.model_name}. Proceeding with SNR calculation.")
-        batch_size = input_dialog(title="Batch Size", text="Enter the batch size:").run()
-        batch_size = int(batch_size) if batch_size else 1
-        modifier = ModelModifier(model_name=args.model_name, batch_size=batch_size)
-        selected_weight_types = modifier.interactive_select_weights()
-        if selected_weight_types:
-            modifier.assess_layers_snr(selected_weight_types)
-            modifier.save_snr_to_json()
-            print("Finished SNR scanning and data saved.")
-        else:
-            print("No weight types selected.")
-
-if __name__ == "__main__":
-    main()

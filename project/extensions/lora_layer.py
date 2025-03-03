@@ -33,9 +33,12 @@ def replace_linear_with_lora(model, rank, alpha):
     # model: the PyTorch model
     # rank: the rank of the LoraLayer
     # alpha: the alpha parameter of the LoraLayer
+    last_layer_name, _ = list(model.named_modules())[-1]
     for name, module in model.named_children():
-        if isinstance(module, torch.nn.Linear):
+        if isinstance(module, torch.nn.Linear) and name not in last_layer_name:
             setattr(model, name, LinearWithLora(module.in_features, module.out_features, rank, alpha))
+
         else:
             replace_linear_with_lora(module, rank, alpha)
+
     return model
