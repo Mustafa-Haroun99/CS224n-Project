@@ -1,0 +1,306 @@
+{
+    "transformer.h.0.attn.c_attn": {
+        "snr": 0.05096730962395668,
+        "type": "attn.c_attn"
+    },
+    "transformer.h.0.attn.c_proj": {
+        "snr": 0.05728183314204216,
+        "type": "attn.c_proj"
+    },
+    "transformer.h.1.attn.c_attn": {
+        "snr": 0.08589942008256912,
+        "type": "attn.c_attn"
+    },
+    "transformer.h.1.attn.c_proj": {
+        "snr": 0.033341072499752045,
+        "type": "attn.c_proj"
+    },
+    "transformer.h.2.attn.c_attn": {
+        "snr": 0.09958706051111221,
+        "type": "attn.c_attn"
+    },
+    "transformer.h.2.attn.c_proj": {
+        "snr": 0.052687868475914,
+        "type": "attn.c_proj"
+    },
+    "transformer.h.3.attn.c_attn": {
+        "snr": 0.1701946258544922,
+        "type": "attn.c_attn"
+    },
+    "transformer.h.3.attn.c_proj": {
+        "snr": 0.059346552938222885,
+        "type": "attn.c_proj"
+    },
+    "transformer.h.4.attn.c_attn": {
+        "snr": 0.15372155606746674,
+        "type": "attn.c_attn"
+    },
+    "transformer.h.4.attn.c_proj": {
+        "snr": 0.05097002536058426,
+        "type": "attn.c_proj"
+    },
+    "transformer.h.5.attn.c_attn": {
+        "snr": 0.1435755491256714,
+        "type": "attn.c_attn"
+    },
+    "transformer.h.5.attn.c_proj": {
+        "snr": 0.05868757143616676,
+        "type": "attn.c_proj"
+    },
+    "transformer.h.6.attn.c_attn": {
+        "snr": 0.1734497994184494,
+        "type": "attn.c_attn"
+    },
+    "transformer.h.6.attn.c_proj": {
+        "snr": 0.054169394075870514,
+        "type": "attn.c_proj"
+    },
+    "transformer.h.7.attn.c_attn": {
+        "snr": 0.17978012561798096,
+        "type": "attn.c_attn"
+    },
+    "transformer.h.7.attn.c_proj": {
+        "snr": 0.04235221445560455,
+        "type": "attn.c_proj"
+    },
+    "transformer.h.8.attn.c_attn": {
+        "snr": 0.2951270341873169,
+        "type": "attn.c_attn"
+    },
+    "transformer.h.8.attn.c_proj": {
+        "snr": 0.037748783826828,
+        "type": "attn.c_proj"
+    },
+    "transformer.h.9.attn.c_attn": {
+        "snr": 0.36405980587005615,
+        "type": "attn.c_attn"
+    },
+    "transformer.h.9.attn.c_proj": {
+        "snr": 0.027576172724366188,
+        "type": "attn.c_proj"
+    },
+    "transformer.h.10.attn.c_attn": {
+        "snr": 0.24788489937782288,
+        "type": "attn.c_attn"
+    },
+    "transformer.h.10.attn.c_proj": {
+        "snr": 0.02230159565806389,
+        "type": "attn.c_proj"
+    },
+    "transformer.h.11.attn.c_attn": {
+        "snr": 0.22877468168735504,
+        "type": "attn.c_attn"
+    },
+    "transformer.h.11.attn.c_proj": {
+        "snr": 0.013071608729660511,
+        "type": "attn.c_proj"
+    },
+    "lm_head": {
+        "snr": 0.5392611026763916,
+        "type": "lm_head"
+    },
+    "transformer.h.0.ln_1": {
+        "snr": Infinity,
+        "type": "ln_1"
+    },
+    "transformer.h.1.ln_1": {
+        "snr": Infinity,
+        "type": "ln_1"
+    },
+    "transformer.h.2.ln_1": {
+        "snr": Infinity,
+        "type": "ln_1"
+    },
+    "transformer.h.3.ln_1": {
+        "snr": Infinity,
+        "type": "ln_1"
+    },
+    "transformer.h.4.ln_1": {
+        "snr": Infinity,
+        "type": "ln_1"
+    },
+    "transformer.h.5.ln_1": {
+        "snr": Infinity,
+        "type": "ln_1"
+    },
+    "transformer.h.6.ln_1": {
+        "snr": Infinity,
+        "type": "ln_1"
+    },
+    "transformer.h.7.ln_1": {
+        "snr": Infinity,
+        "type": "ln_1"
+    },
+    "transformer.h.8.ln_1": {
+        "snr": Infinity,
+        "type": "ln_1"
+    },
+    "transformer.h.9.ln_1": {
+        "snr": Infinity,
+        "type": "ln_1"
+    },
+    "transformer.h.10.ln_1": {
+        "snr": Infinity,
+        "type": "ln_1"
+    },
+    "transformer.h.11.ln_1": {
+        "snr": Infinity,
+        "type": "ln_1"
+    },
+    "transformer.h.0.ln_2": {
+        "snr": Infinity,
+        "type": "ln_2"
+    },
+    "transformer.h.1.ln_2": {
+        "snr": Infinity,
+        "type": "ln_2"
+    },
+    "transformer.h.2.ln_2": {
+        "snr": Infinity,
+        "type": "ln_2"
+    },
+    "transformer.h.3.ln_2": {
+        "snr": Infinity,
+        "type": "ln_2"
+    },
+    "transformer.h.4.ln_2": {
+        "snr": Infinity,
+        "type": "ln_2"
+    },
+    "transformer.h.5.ln_2": {
+        "snr": Infinity,
+        "type": "ln_2"
+    },
+    "transformer.h.6.ln_2": {
+        "snr": Infinity,
+        "type": "ln_2"
+    },
+    "transformer.h.7.ln_2": {
+        "snr": Infinity,
+        "type": "ln_2"
+    },
+    "transformer.h.8.ln_2": {
+        "snr": Infinity,
+        "type": "ln_2"
+    },
+    "transformer.h.9.ln_2": {
+        "snr": Infinity,
+        "type": "ln_2"
+    },
+    "transformer.h.10.ln_2": {
+        "snr": Infinity,
+        "type": "ln_2"
+    },
+    "transformer.h.11.ln_2": {
+        "snr": Infinity,
+        "type": "ln_2"
+    },
+    "transformer.h.0.mlp.c_fc": {
+        "snr": 0.18283692002296448,
+        "type": "mlp.c_fc"
+    },
+    "transformer.h.1.mlp.c_fc": {
+        "snr": 0.7142584323883057,
+        "type": "mlp.c_fc"
+    },
+    "transformer.h.2.mlp.c_fc": {
+        "snr": 0.3878572881221771,
+        "type": "mlp.c_fc"
+    },
+    "transformer.h.3.mlp.c_fc": {
+        "snr": 0.3044531047344208,
+        "type": "mlp.c_fc"
+    },
+    "transformer.h.4.mlp.c_fc": {
+        "snr": 0.2753615081310272,
+        "type": "mlp.c_fc"
+    },
+    "transformer.h.5.mlp.c_fc": {
+        "snr": 0.24226559698581696,
+        "type": "mlp.c_fc"
+    },
+    "transformer.h.6.mlp.c_fc": {
+        "snr": 0.2615205645561218,
+        "type": "mlp.c_fc"
+    },
+    "transformer.h.7.mlp.c_fc": {
+        "snr": 0.2952030897140503,
+        "type": "mlp.c_fc"
+    },
+    "transformer.h.8.mlp.c_fc": {
+        "snr": 0.3414100408554077,
+        "type": "mlp.c_fc"
+    },
+    "transformer.h.9.mlp.c_fc": {
+        "snr": 0.29919278621673584,
+        "type": "mlp.c_fc"
+    },
+    "transformer.h.10.mlp.c_fc": {
+        "snr": 0.2891062796115875,
+        "type": "mlp.c_fc"
+    },
+    "transformer.h.11.mlp.c_fc": {
+        "snr": 0.26312193274497986,
+        "type": "mlp.c_fc"
+    },
+    "transformer.h.0.mlp.c_proj": {
+        "snr": 0.5531590580940247,
+        "type": "mlp.c_proj"
+    },
+    "transformer.h.1.mlp.c_proj": {
+        "snr": 2.6403117179870605,
+        "type": "mlp.c_proj"
+    },
+    "transformer.h.2.mlp.c_proj": {
+        "snr": 0.4834420382976532,
+        "type": "mlp.c_proj"
+    },
+    "transformer.h.3.mlp.c_proj": {
+        "snr": 0.2856225371360779,
+        "type": "mlp.c_proj"
+    },
+    "transformer.h.4.mlp.c_proj": {
+        "snr": 0.35771504044532776,
+        "type": "mlp.c_proj"
+    },
+    "transformer.h.5.mlp.c_proj": {
+        "snr": 0.3988647758960724,
+        "type": "mlp.c_proj"
+    },
+    "transformer.h.6.mlp.c_proj": {
+        "snr": 0.3812349736690521,
+        "type": "mlp.c_proj"
+    },
+    "transformer.h.7.mlp.c_proj": {
+        "snr": 0.3910597562789917,
+        "type": "mlp.c_proj"
+    },
+    "transformer.h.8.mlp.c_proj": {
+        "snr": 0.28929269313812256,
+        "type": "mlp.c_proj"
+    },
+    "transformer.h.9.mlp.c_proj": {
+        "snr": 0.2618725299835205,
+        "type": "mlp.c_proj"
+    },
+    "transformer.h.10.mlp.c_proj": {
+        "snr": 0.26721593737602234,
+        "type": "mlp.c_proj"
+    },
+    "transformer.h.11.mlp.c_proj": {
+        "snr": 0.23833131790161133,
+        "type": "mlp.c_proj"
+    },
+    "transformer.ln_f": {
+        "snr": Infinity,
+        "type": "transformer.ln_f"
+    },
+    "transformer.wpe": {
+        "snr": 0.16357417404651642,
+        "type": "transformer.wpe"
+    },
+    "transformer.wte": {
+        "snr": 0.5392611026763916,
+        "type": "transformer.wte"
+    }
+}
