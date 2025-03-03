@@ -42,3 +42,18 @@ def replace_linear_with_lora(model, rank, alpha):
             replace_linear_with_lora(module, rank, alpha)
 
     return model
+
+def freeze_all_but_last(model, verbose=False):
+    # Freeze all layers except the last layer in the model.
+    # model: the PyTorch model
+    last_layer_name, _ = list(model.named_modules())[-1]
+    for name, module in model.named_children():
+        if name != last_layer_name:
+            for param in module.parameters():
+                param.requires_grad = False
+        else:
+            freeze_all_but_last(module)
+    if verbose:
+        for name, param in model.named_parameters():
+            print(f"{name}: requires_grad = {param.requires_grad}")
+

@@ -33,8 +33,12 @@ from datasets import (
 )
 from evaluation import model_eval_paraphrase, model_test_paraphrase
 from models.gpt2 import GPT2Model
+from extensions.lora_layer import replace_linear_with_lora, freeze_all_but_last
+from extensions.spectrum import freeze_model, unfreeze_last
+from extensions.jacobian_reg import JacobianReg
 
 from optimizer import AdamW
+
 
 TQDM_DISABLE = False
 
@@ -113,11 +117,29 @@ def train(args):
 
   args = add_arguments(args)
   model = ParaphraseGPT(args)
+  
+  # Applying LoRA
+  if args.lora:
+    freeze_all_but_last(model)
+    model = replace_linear_with_lora(model, args.rank, args.alpha)
+  # Applying Spectrum
+  if args.spectrum:
+    weights_path = f'./extensions/spectrum/model_snr_results/snr_results_{args.top_percent}.json'
+    if not os.path.exists(weights_path):
+      raise FileNotFoundError(f"File {weights_path} does not exist.")
+    else:
+      freeze_model(model, weights_path)
+      unfreeze_last(model)
+    # Applying Jacobian Regularization
+  if args.j_reg > 0:
+    jacobian_reg = JacobianReg(args.n_proj)
+    
   model = model.to(device)
 
   lr = args.lr
   optimizer = AdamW(model.parameters(), lr=lr, weight_decay=0.)
   best_dev_acc = 0
+
 
   # Run for the specified number of epochs.
   for epoch in range(args.epochs):
@@ -139,6 +161,8 @@ def train(args):
       preds = torch.argmax(logits, dim=1)
       labels = torch.where(labels == 8505, torch.tensor(1, device=device), torch.tensor(0, device=device))
       loss = F.cross_entropy(logits, labels, reduction='mean')
+      if args.j_reg > 0:
+        loss += args.j_reg * jacobian_reg(logits, labels)
       accuracy += (preds == labels).sum().item()
       perplexity += torch.exp(loss).item()
 
@@ -224,14 +248,6 @@ def get_args():
   parser.add_argument("--para_test", type=str, default="data/quora-test-student.csv")
   parser.add_argument("--para_dev_out", type=str, default="predictions/para-dev-output.csv")
   parser.add_argument("--para_test_out", type=str, default="predictions/para-test-output.csv")
-  
-  # Hyperparameters added for our model regularized
-  parser.add_argument("--j_reg", type=float, default=0.0)
-  parser.add_argument("--s_reg", type=float, default=0.0)
-  parser.add_argument("--spectrum_rate", type=float, default=1.0)
-  parser.add_argument("--shampoo", type=float, default=0.0)
-    #   parser.add_argument("--spectrum_rate", type=float, default=1.0)
-
   parser.add_argument("--seed", type=int, default=11711)
   parser.add_argument("--epochs", type=int, default=10)
   parser.add_argument("--use_gpu", action='store_true')
@@ -241,6 +257,16 @@ def get_args():
   parser.add_argument("--model_size", type=str,
                       help="The model size as specified on hugging face. DO NOT use the xl model.",
                       choices=['gpt2', 'gpt2-medium', 'gpt2-large'], default='gpt2')
+  # Jacobian Regularization Parameters
+  parser.add_argument("--j_reg", type=float, default=0.0)
+  parser.add_argument("--n_proj", type=int, default=1)
+  ## LoRA parameters
+  parser.add_argument("--rank", type=int, default=16)
+  parser.add_argument("--alpha", type=int, default=16)
+  parser.add_argument("--lora", action='store_true')
+  # Spectrum Parameters
+  parser.add_argument("--top_percent", type=int, default=10)
+  parser.add_argument("--spectrum", action='store_true')
 
   args = parser.parse_args()
   return args

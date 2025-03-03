@@ -12,6 +12,19 @@ import time
 
 import re
 
+
+def unfreeze_last(model, verbose=False):
+    "Function that unfreezes the last layer of a model"  
+    last_layer_name, _ = list(model.named_modules())[-1]
+    for name, module in model.named_children():
+        if name == last_layer_name:
+            for param in module.parameters():
+                param.requires_grad = True
+    if verbose:
+        for name, param in model.named_parameters():
+            print(f"{name}: requires_grad = {param.requires_grad}")
+
+
 def freeze_model(model, file_name):
     with open(file_name, "r") as fin:
         yaml_parameters = fin.read()
