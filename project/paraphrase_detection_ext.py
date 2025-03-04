@@ -99,10 +99,11 @@ def save_model(model, optimizer, args, filepath):
   print(f"save the model to {filepath}")
 
 
-def train(args):
+def train(args, experiment_id=1):
   """Train GPT-2 for paraphrase detection on the Quora dataset."""
   device = torch.device('cuda') if args.use_gpu and torch.cuda.is_available() else torch.device('cpu')
-  writer = SummaryWriter("runs/my_experiment") # TODO: FIX PATH DEPENDING ON EXPERIMENT ID
+  experiment_path = args.file_path.replace('.pt', '').replace('experiments/', 'runs/')
+  writer = SummaryWriter(f'{experiment_path}_{experiment_id}') # TODO: FIX PATH DEPENDING ON EXPERIMENT ID
   # Create the data and its corresponding datasets and dataloader.
   para_train_data = load_paraphrase_data(args.para_train)
   para_dev_data = load_paraphrase_data(args.para_dev)
@@ -174,20 +175,19 @@ def train(args):
 
     train_loss = train_loss / num_batches
     accuracy = accuracy / len(para_train_data)
+    dev_acc, dev_f1, *_ = model_eval_paraphrase(para_dev_dataloader, model, device)
+    ## Tensoboard computations
     perplexity = perplexity / num_batches
     writer.add_scalar("Train/Loss", train_loss, epoch)
     writer.add_scalar("Train/Accuracy", accuracy, epoch)
     writer.add_scalar("Train/Perplexity", perplexity, epoch)
-
-
-    dev_acc, dev_f1, *_ = model_eval_paraphrase(para_dev_dataloader, model, device)
     writer.add_scalar("Dev/Accuracy", dev_acc, epoch)
     writer.add_scalar("Dev/F1", dev_f1, epoch)
 
 
     if dev_acc > best_dev_acc:
       best_dev_acc = dev_acc
-      save_model(model, optimizer, args, args.filepath)
+      save_model(model, optimizer, args, args.filepath) #TODO: MODIFY THIS SAVE FILE PATH
 
     print(f"Epoch {epoch}: train loss :: {train_loss :.3f}, dev acc :: {dev_acc :.3f}")
 
@@ -267,6 +267,13 @@ def get_args():
   # Spectrum Parameters
   parser.add_argument("--top_percent", type=int, default=10)
   parser.add_argument("--spectrum", action='store_true')
+  ### SMART regularizer Parameters
+  parser.add_argument("--smart", action='store_true')
+  parser.add_argument("--smart_lambda", type=float, default=0.1)
+  parser.add_argument("--smart_alpha", type=float, default=0.1)
+  parser.add_argument("--smart_beta", type=float, default=0.1)
+  parser.add_argument("--smart_gamma", type=float, default=0.1)
+
 
   args = parser.parse_args()
   return args
@@ -295,7 +302,9 @@ if __name__ == "__main__":
   from extensions.pipeline_utils import generate_experiment_id
   experiment_id = generate_experiment_id()
   args = get_args()
-  args.filepath = f'{args.epochs}-{args.lr}-paraphrase-{experiment_id}.pt'  # Save path.
+  os.makedirs('experiments', exist_ok=True)
+  model_path = f'{args.epochs}-{args.lr}-paraphrase-{experiment_id}.pt'
+  args.filepath =  os.path.join('experiments', model_path)
   seed_everything(args.seed)  # Fix the seed for reproducibility.
-  train(args)
+  train(args, experiment_id)
   test(args)
