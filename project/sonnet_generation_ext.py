@@ -218,8 +218,6 @@ def train(args, experiment_id=1):
             train_loss += loss.item()
             num_batches += 1
         
-            
-
         train_loss = train_loss / num_batches
         print(f"Epoch {epoch}: train loss :: {train_loss :.3f}.")
         print('Generating several output sonnets...')
@@ -231,6 +229,30 @@ def train(args, experiment_id=1):
 
         # TODO: consider a stopping condition to prevent overfitting on the small dataset of sonnets.
         save_model(model, optimizer, args, f'{epoch}_{args.filepath}')
+        
+    metrics= {
+        'experiment_id': experiment_id,
+        "best_dev_acc": best_dev_acc,
+        "best_dev_f1": dev_f1,
+        'epochs': args.epochs,
+        'lr': args.lr,
+        'batch_size': args.batch_size,
+        'model_size': args.model_size,
+        'j_reg': args.j_reg,
+        'n_proj': args.n_proj,
+        'rank': args.rank,
+        'alpha': args.alpha,
+        'lora': args.lora,
+        'top_percent': args.top_percent,
+        'spectrum': args.spectrum,
+        'smart': args.smart,
+        'smart_lambda': args.smart_lambda,
+        'loss': train_loss,
+        'accuracy': accuracy,
+        'perplexity': perplexity
+        }
+    return metrics
+
 
 
 @torch.no_grad()
