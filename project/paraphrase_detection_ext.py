@@ -31,12 +31,13 @@ from datasets import (
   ParaphraseDetectionTestDataset,
   load_paraphrase_data
 )
+# Local Imports
 from evaluation import model_eval_paraphrase, model_test_paraphrase
 from models.gpt2 import GPT2Model
 from extensions.lora_layer import replace_linear_with_lora, freeze_all_but_last
 from extensions.spectrum import freeze_model, unfreeze_last
 from extensions.jacobian_reg import JacobianReg
-
+from extensions.pipeline_utils import store_txt_experiment_data
 from optimizer import AdamW
 
 
@@ -283,6 +284,7 @@ def get_args():
   parser.add_argument("--model_size", type=str,
                       help="The model size as specified on hugging face. DO NOT use the xl model.",
                       choices=['gpt2', 'gpt2-medium', 'gpt2-large'], default='gpt2')
+  
   # Jacobian Regularization Parameters
   parser.add_argument("--j_reg", type=float, default=0.0)
   parser.add_argument("--n_proj", type=int, default=1)
@@ -294,12 +296,11 @@ def get_args():
   parser.add_argument("--top_percent", type=int, default=10)
   parser.add_argument("--spectrum", action='store_true')
   ### SMART regularizer Parameters
-  parser.add_argument("--smart", action='store_true') # TODO: INCLUDE SMART REGULARIZER IN PIPELINE
-  parser.add_argument("--smart_lambda", type=float, default=0.1)
-  parser.add_argument("--smart_alpha", type=float, default=0.1)
-  parser.add_argument("--smart_beta", type=float, default=0.1)
-  parser.add_argument("--smart_gamma", type=float, default=0.1)
-
+  parser.add_argument("--smart", action='store_true')  
+  parser.add_argument("--num_steps", type=int, default=1)
+  parser.add_argument("--step_size_sm", type=float, default=1e-3)
+  parser.add_argument("--epsilon_sm", type=float, default=1e-6)
+  parser.add_argument("--noise_var_sm", type=float, default=1e-5)
 
   args = parser.parse_args()
   return args
@@ -329,29 +330,15 @@ if __name__ == "__main__":
   experiment_id = generate_experiment_id()
   args = get_args()
   os.makedirs('experiments/paraphrase', exist_ok=True)
-  model_path = f'{args.epochs}-{args.lr}-paraphrase-{experiment_id}.pt'
+  model_path = f'paraphrase-{experiment_id}.pt'
   args.filepath =  os.path.join('experiments', model_path)
   seed_everything(args.seed)  # Fix the seed for reproducibility.
   metrics = train(args, experiment_id)
   metrics = test(args)
-  # TODO:
-  # Save the metrics to a file
-  from extensions.pipeline_utils import store_txt_experiment_data
   store_txt_experiment_data(metrics, 'paraphrase')
   print('Metrics have been stored in experiments/paraphrase_metrics.txt')
 
 
 
        
-        
-with open('metrics.txt', 'w') as f:
-    quoted_keys = [f'"{key}"' for key in metrics.keys()]
-    f.write(', '.join(quoted_keys))
-      
-
-    # with open(f'experiments/paraphrase/results.json', 'w') as f:
-    #   json.dump(metrics, f, separators=(',', ':'), indent=4)
-    #   # add a new line for next experiment
-    #   f.write('\n')
-
       
