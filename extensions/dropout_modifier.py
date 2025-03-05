@@ -1,3 +1,5 @@
+import torch
+
 def modify_transformer_dropout(model, new_dropout_rate):
     """Specific implementation for transformer models"""
     for module in model.modules():
