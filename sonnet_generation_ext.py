@@ -331,8 +331,8 @@ def generate_submission_sonnets(args, experiment_id, last_epoch=None):
         generated_sonnets.append((sonnet_id, full_sonnet))
 
         print(f'{decoded_output}\n\n')
-
-    with open(args.sonnet_out, "w+") as f:
+    store_sonnets_path = args.filepath.replace('.pt', f'/generated_sonnets.txt')
+    with open(store_sonnets_path, "w+") as f:
         f.write(f"--Generated Sonnets-- \n\n")
         for sonnet in generated_sonnets:
             f.write(f"\n{sonnet[0]}\n")
@@ -356,7 +356,7 @@ def get_args():
                                             default=0.9)
 
     parser.add_argument("-b","--batch_size", help='The training batch size.', type=int, default=8)
-    parser.add_argument("--lr", type=float, help="learning rate", default=5e-5) # LORA NEEDS A LEARNING RATE OF 1E
+    parser.add_argument("--lr", type=float, help="learning rate", default=1e-4) # LORA NEEDS A LEARNING RATE OF 1E
     parser.add_argument("--model_size", type=str, help="The model size as specified on hugging face.",
                                             choices=['gpt2', 'gpt2-medium', 'gpt2-large', 'gpt2-xl'], default='gpt2')
     

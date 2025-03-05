@@ -63,8 +63,6 @@ class SonnetGPT(nn.Module):
     """
     ### YOUR CODE HERE
     outputs = self.gpt(input_ids, attention_mask=attention_mask)
-    # logits = outputs['last_hidden_state']
-    # logits = self.linear(logits)
 
     # return logits
     return self.gpt.hidden_state_to_token(outputs['last_hidden_state'])
@@ -272,3 +270,4 @@ if __name__ == "__main__":
   seed_everything(args.seed)  # Fix the seed for reproducibility.
   train(args)
   generate_submission_sonnets(args)
+  

@@ -1,7 +1,7 @@
 from datetime import datetime
 import numpy as np
 from tensorboard.backend.event_processing import event_accumulator
-
+import glob
 import os
 
 def generate_experiment_id():
@@ -15,12 +15,12 @@ def store_txt_experiment_data(metrics,
     file_name = f'{directory_experiments}_metrics.txt'
     if metrics is not None:
         metrics_file_exists = os.path.exists(file_name)
-        with open(file_name, 'w') as f:
+        with open(file_name, 'a+') as f:
             if not metrics_file_exists:
                 columns = [f'{k}' for k in metrics.keys()]
                 f.write(', '.join(columns))
                 f.write('\n')
-      
+            f.write('\n')
             row = [f'{v}' for v in metrics.values()]
             f.write(', '.join(row))
             f.write('\n')
@@ -76,3 +76,25 @@ def extract_tensorboard_data(log_dir):
 # print(f"Epochs: {epochs}")
 # print(f"Loss values: {loss_values}")
 # print(f"Accuracy values: {accuracy_values}")
+
+
+def keep_latest_epoch_checkpoint(file_path):
+    # Get all checkpoint files
+    checkpoint_files = glob.glob("sonnet_*.pt")  # Adjust pattern if needed
+
+    # Extract the epoch number from the filenames
+    def extract_epoch(file_name):
+        return int(file_name.split("_")[-1].split(".")[0])  # Get number after last "_"
+
+    # Sort files by epoch number
+    checkpoint_files.sort(key=extract_epoch)
+
+    # Keep only the latest checkpoint
+    latest_checkpoint = checkpoint_files[-1]  # The last file in the sorted list
+
+    # Delete all older checkpoints
+    for file in checkpoint_files[:-1]:  # Keep the last one
+        os.remove(file)
+        print(f"Deleted: {file}")
+
+    print(f"Kept latest checkpoint: {latest_checkpoint}")
