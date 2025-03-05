@@ -78,23 +78,19 @@ def extract_tensorboard_data(log_dir):
 # print(f"Accuracy values: {accuracy_values}")
 
 
-def keep_latest_epoch_checkpoint(file_path):
+def keep_latest_epoch_checkpoint(file_path, latest_epoch):
     # Get all checkpoint files
-    checkpoint_files = glob.glob("sonnet_*.pt")  # Adjust pattern if needed
+    checkpoint_files = glob.glob(f"{file_path}sonnet_*.pt")  # Adjust pattern if needed
 
-    # Extract the epoch number from the filenames
+    # Extract the epoch number from filenames
     def extract_epoch(file_name):
         return int(file_name.split("_")[-1].split(".")[0])  # Get number after last "_"
 
-    # Sort files by epoch number
-    checkpoint_files.sort(key=extract_epoch)
-
-    # Keep only the latest checkpoint
-    latest_checkpoint = checkpoint_files[-1]  # The last file in the sorted list
-
-    # Delete all older checkpoints
-    for file in checkpoint_files[:-1]:  # Keep the last one
-        os.remove(file)
-        print(f"Deleted: {file}")
-
-    print(f"Kept latest checkpoint: {latest_checkpoint}")
+    # Iterate and delete files that are NOT the latest
+    for file in checkpoint_files:
+        epoch = extract_epoch(file)
+        if epoch != latest_epoch:  # Keep only the specified latest epoch
+            os.remove(file)
+            print(f"Deleted: {file}")
+    
+    print(f"Kept latest checkpoint: {file_path}/sonnet_{latest_epoch}.pt")

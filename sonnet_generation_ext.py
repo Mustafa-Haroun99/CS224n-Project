@@ -31,7 +31,7 @@ from models.gpt2 import GPT2Model
 from extensions.lora_layer import replace_linear_with_lora, freeze_all_but_last
 from extensions.spectrum import freeze_model, unfreeze_last
 from extensions.jacobian_reg import JacobianReg
-from extensions.pipeline_utils import store_txt_experiment_data, generate_experiment_id
+from extensions.pipeline_utils import store_txt_experiment_data, generate_experiment_id, keep_latest_epoch_checkpoint
 from extensions.smart_pytorch import SMARTLoss
 from extensions.early_stopper import EarlyStopping
 from extensions.dropout_modifier import modify_model_dropout
@@ -419,4 +419,5 @@ if __name__ == "__main__":
     metrics = train(args, experiment_id)
     generate_submission_sonnets(args, experiment_id, last_epoch=metrics['last_epoch'])
     store_txt_experiment_data(metrics, 'sonnet')
+    keep_latest_epoch_checkpoint(args.filepath.replace('.pt', '/'), metrics['last_epoch'])
     print('Metrics have been stored in experiments/sonnet_metrics.txt')
