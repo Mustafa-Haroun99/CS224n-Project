@@ -224,9 +224,7 @@ def train(args, experiment_id=1):
         perplexity = 0
         i =0
         for batch in tqdm(sonnet_dataloader, desc=f'train-{epoch}', disable=TQDM_DISABLE):
-            if i == 3:
-                import sys;
-                sys.exit()
+
             # Get the input and move it to the gpu (I do not recommend training this model on CPU).
             b_ids, b_mask = batch['token_ids'], batch['attention_mask']
             b_ids = b_ids.to(device)
@@ -364,8 +362,8 @@ def get_args():
     
     # Jacobian Regularization Parameters
     parser.add_argument("--jacobian", action='store_true')
-    parser.add_argument("--jreg_lambda", type=float, default=0.0)
-    parser.add_argument("--n_proj", type=int, default=1)
+    parser.add_argument("--jreg_lambda", type=float, default=0.1)
+    parser.add_argument("--n_proj", type=int, default=1) # keep this as it is
     # LoRA parameters
     parser.add_argument("--lora", action='store_true')
     parser.add_argument("--rank", type=int, default=16)
