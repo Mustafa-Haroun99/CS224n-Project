@@ -39,7 +39,8 @@ from extensions.spectrum import freeze_model, unfreeze_last
 from extensions.jacobian_reg import JacobianReg
 from extensions.pipeline_utils import store_txt_experiment_data,    generate_experiment_id
 from extensions.smart_pytorch import SMARTLoss
-# from extensions.dropout_modifier import modify_transformer_dropout
+from extensions.dropout_modifier import modify_model_dropout
+from extensions.early_stopper import EarlyStopping
 from optimizer import AdamW
 
 
@@ -121,31 +122,39 @@ def train(args, experiment_id=1):
 
   args = add_arguments(args)
   model = ParaphraseGPT(args)
-  # Applying Dropout
-  model = modify_transformer_dropout(model, args)
+ # Adding change in dropout rates
+  if args.change_dropout:
+      modify_model_dropout(model, args.dropout, args.attn_dropout)
+  
+  # Early stopping
+  early_stopping = EarlyStopping(patience=args.patience, delta=args.delta)
   
   # Applying LoRA
   if args.lora:
-    freeze_all_but_last(model)
-    model = replace_linear_with_lora(model, args.rank, args.alpha)
+      freeze_all_but_last(model)
+      model = replace_linear_with_lora(model, args.rank, args.alpha)
+      print(model)
+
+  model = model.to(device)
   # Applying Spectrum
   if args.spectrum:
-    weights_path = f'./extensions/spectrum/model_snr_results/snr_results_{args.top_percent}.json'
-    if not os.path.exists(weights_path):
-      raise FileNotFoundError(f"File {weights_path} does not exist.")
-    else:
-      freeze_model(model, weights_path)
+      weights_path = f"extensions/spectrum/model_snr_results/snr_results_gpt2_unfrozenparameters_{args.top_percent}percent.yaml"
+      if not os.path.exists(weights_path):
+          raise FileNotFoundError(f"File {weights_path} does not exist.")
+      else:
+          freeze_model(model, weights_path)
       unfreeze_last(model)
+      print(model)
+      model = model.to(device)
   
   # Applying Jacobian Regularization
   if args.jacobian:
-    jacobian_reg = JacobianReg(args.n_proj)
-    
-  model = model.to(device)
+      jacobian_reg = JacobianReg(args.n_proj)
+  
   # Smart Regularizer instantiation
   if args.smart:
       kl_loss =nn.KLDivLoss()
-      smart_loss = SMARTLoss(model, kl_loss, num_steps=args.num_steps, step_size=args.step_size_sm, epsilon=args.epsilon_sm, noise_var=args.noise_var_sm)
+      smart_loss = SMARTLoss(model.forward_with_embeddings, kl_loss, num_steps=args.num_steps, step_size=args.step_size_sm, epsilon=args.epsilon_sm, noise_var=args.noise_var_sm)
 
   lr = args.lr
   optimizer = AdamW(model.parameters(), lr=lr, weight_decay=0.)
@@ -300,22 +309,29 @@ def get_args():
   
   # Jacobian Regularization Parameters
   parser.add_argument("--jacobian", action='store_true')
-  parser.add_argument("--jreg_lambda", type=float, default=0.0)
-  parser.add_argument("--n_proj", type=int, default=1)
-  ## LoRA parameters
+  parser.add_argument("--jreg_lambda", type=float, default=0.1)
+  parser.add_argument("--n_proj", type=int, default=1) # keep this as it is
+  # LoRA parameters
+  parser.add_argument("--lora", action='store_true')
   parser.add_argument("--rank", type=int, default=16)
   parser.add_argument("--alpha", type=int, default=16)
-  parser.add_argument("--lora", action='store_true')
   # Spectrum Parameters
-  parser.add_argument("--top_percent", type=int, default=10)
   parser.add_argument("--spectrum", action='store_true')
-  ### SMART regularizer Parameters
+  parser.add_argument("--top_percent", type=int, default=25)
+  # SMART regularizer Parameters
   parser.add_argument("--smart", action='store_true')  
   parser.add_argument("--num_steps", type=int, default=1)
   parser.add_argument("--step_size_sm", type=float, default=1e-3)
   parser.add_argument("--epsilon_sm", type=float, default=1e-6)
   parser.add_argument("--noise_var_sm", type=float, default=1e-5)
-  parser.add_argument("--smart_lambda", type=float, default=1e-3)
+  parser.add_argument("--smart_lambda", type=float, default=1e-5)
+  ### Early Stopping Patience
+  parser.add_argument("--patience", type=int, default=5)
+  parser.add_argument("--delta", type=float, default=1e-4)
+  ## Dropout Parameter Experiments
+  parser.add_argument("--change_dropout", action='store_true')
+  parser.add_argument("--dropout", type=float, default=0.1)
+  parser.add_argument('--attn_dropout', type=float, default=0.1)
 
   args = parser.parse_args()
   return args
