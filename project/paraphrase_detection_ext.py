@@ -37,7 +37,7 @@ from models.gpt2 import GPT2Model
 from extensions.lora_layer import replace_linear_with_lora, freeze_all_but_last
 from extensions.spectrum import freeze_model, unfreeze_last
 from extensions.jacobian_reg import JacobianReg
-from extensions.pipeline_utils import store_txt_experiment_data
+from extensions.pipeline_utils import store_txt_experiment_data,    generate_experiment_id
 from extensions.smart_pytorch import SMARTLoss
 from optimizer import AdamW
 
@@ -133,11 +133,13 @@ def train(args, experiment_id=1):
     else:
       freeze_model(model, weights_path)
       unfreeze_last(model)
-    # Applying Jacobian Regularization
-  if args.j_reg > 0:
+  
+  # Applying Jacobian Regularization
+  if args.jacobian:
     jacobian_reg = JacobianReg(args.n_proj)
     
   model = model.to(device)
+  # Smart Regularizer instantiation
   if args.smart:
       kl_loss =nn.KLDivLoss()
       smart_loss = SMARTLoss(model, kl_loss, num_steps=args.num_steps, step_size=args.step_size_sm, epsilon=args.epsilon_sm, noise_var=args.noise_var_sm)
@@ -167,12 +169,13 @@ def train(args, experiment_id=1):
       preds = torch.argmax(logits, dim=1)
       labels = torch.where(labels == 8505, torch.tensor(1, device=device), torch.tensor(0, device=device))
       loss = F.cross_entropy(logits, labels, reduction='mean')
-      if args.j_reg > 0:
-        loss += args.j_reg * jacobian_reg(logits, labels)
+      perplexity += torch.exp(loss).item()
+      if args.jacobian:
+        loss += args.jreg_lambda * jacobian_reg(logits, labels)
       if args.smart:
         loss += args.smart_lambda * smart_loss(b_ids, logits)
       accuracy += (preds == labels).sum().item()
-      perplexity += torch.exp(loss).item()
+      
 
       loss.backward()
       optimizer.step()
@@ -292,7 +295,8 @@ def get_args():
                       choices=['gpt2', 'gpt2-medium', 'gpt2-large'], default='gpt2')
   
   # Jacobian Regularization Parameters
-  parser.add_argument("--j_reg", type=float, default=0.0)
+  parser.add_argument("--jacobian", action='store_true')
+  parser.add_argument("--jreg_lambda", type=float, default=0.0)
   parser.add_argument("--n_proj", type=int, default=1)
   ## LoRA parameters
   parser.add_argument("--rank", type=int, default=16)
@@ -333,17 +337,16 @@ def add_arguments(args):
 
 
 if __name__ == "__main__":
-  from extensions.pipeline_utils import generate_experiment_id
   experiment_id = generate_experiment_id()
   args = get_args()
-  os.makedirs('experiments/paraphrase', exist_ok=True)
-  model_path = f'paraphrase-{experiment_id}.pt'
+  os.makedirs('experiments/sonnet', exist_ok=True)
+  model_path = f'sonnet-{experiment_id}.pt'
   args.filepath =  os.path.join('experiments', model_path)
   seed_everything(args.seed)  # Fix the seed for reproducibility.
   metrics = train(args, experiment_id)
   metrics = test(args)
-  store_txt_experiment_data(metrics, 'paraphrase')
-  print('Metrics have been stored in experiments/paraphrase_metrics.txt')
+  store_txt_experiment_data(metrics, 'sonnet')
+  print('Metrics have been stored in experiments/sonnet_metrics.txt')
 
 
 

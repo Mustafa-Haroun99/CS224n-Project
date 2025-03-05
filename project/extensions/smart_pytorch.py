@@ -5,6 +5,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
 from itertools import count 
+from einops import rearrange
 
 def exists(val):
     return val is not None
@@ -40,7 +41,7 @@ class SMARTLoss(nn.Module):
         self.epsilon = epsilon 
         self.noise_var = noise_var
         
-    def forward(self, embed: Tensor, state: Tensor) -> Tensor:
+    def forward(self, embed: Tensor, state: Tensor, reshape_required=False) -> Tensor:
         noise = torch.randn_like(embed, requires_grad=True) * self.noise_var
 
         # Indefinite loop with counter 
@@ -48,6 +49,8 @@ class SMARTLoss(nn.Module):
             # Compute perturbed embed and states 
             embed_perturbed = embed + noise 
             state_perturbed = self.eval_fn(embed_perturbed)
+            if reshape_required:
+                state_perturbed = rearrange(state_perturbed[:, :-1].contiguous(), 'b t d -> (b t) d')  # Ignore the last prediction in the 
             # Return final loss if last step (undetached state)
             if i == self.num_steps: 
                 if self.loss_last_fn is None:
