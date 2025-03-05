@@ -16,11 +16,11 @@ import os
 import random
 import argparse
 import random
-import torch
+import json
 
 import numpy as np
 import torch.nn.functional as F
-
+import torch
 from torch import nn
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -191,9 +191,31 @@ def train(args, experiment_id=1):
 
     print(f"Epoch {epoch}: train loss :: {train_loss :.3f}, dev acc :: {dev_acc :.3f}")
 
+  metrics= {
+    'experiment_id': experiment_id,
+    "best_dev_acc": best_dev_acc,
+    "best_dev_f1": dev_f1,
+    'epochs': args.epochs,
+    'lr': args.lr,
+    'batch_size': args.batch_size,
+    'model_size': args.model_size,
+    'j_reg': args.j_reg,
+    'n_proj': args.n_proj,
+    'rank': args.rank,
+    'alpha': args.alpha,
+    'lora': args.lora,
+    'top_percent': args.top_percent,
+    'spectrum': args.spectrum,
+    'smart': args.smart,
+    'smart_lambda': args.smart_lambda,
+    'loss': train_loss,
+    'accuracy': accuracy,
+    'perplexity': perplexity
+    }
+  return metrics
 
 @torch.no_grad()
-def test(args):
+def test(args, metrics=None):
   """Evaluate your model on the dev and test datasets; save the predictions to disk."""
   # device = torch.device('cuda') if args.use_gpu else torch.device('cpu')
   if args.use_gpu:
@@ -238,6 +260,10 @@ def test(args):
     f.write(f"id \t Predicted_Is_Paraphrase \n")
     for p, s in zip(test_para_sent_ids, test_para_y_pred):
       f.write(f"{p}, {s} \n")
+  if metrics is not None:
+      metrics['dev_para_acc'] = dev_para_acc # TODO: ADD METRICS FOR THE  TEST SET
+  return metrics
+
 
 
 def get_args():
@@ -268,7 +294,7 @@ def get_args():
   parser.add_argument("--top_percent", type=int, default=10)
   parser.add_argument("--spectrum", action='store_true')
   ### SMART regularizer Parameters
-  parser.add_argument("--smart", action='store_true')
+  parser.add_argument("--smart", action='store_true') # TODO: INCLUDE SMART REGULARIZER IN PIPELINE
   parser.add_argument("--smart_lambda", type=float, default=0.1)
   parser.add_argument("--smart_alpha", type=float, default=0.1)
   parser.add_argument("--smart_beta", type=float, default=0.1)
@@ -302,9 +328,30 @@ if __name__ == "__main__":
   from extensions.pipeline_utils import generate_experiment_id
   experiment_id = generate_experiment_id()
   args = get_args()
-  os.makedirs('experiments', exist_ok=True)
+  os.makedirs('experiments/paraphrase', exist_ok=True)
   model_path = f'{args.epochs}-{args.lr}-paraphrase-{experiment_id}.pt'
   args.filepath =  os.path.join('experiments', model_path)
   seed_everything(args.seed)  # Fix the seed for reproducibility.
-  train(args, experiment_id)
-  test(args)
+  metrics = train(args, experiment_id)
+  metrics = test(args)
+  # TODO:
+  # Save the metrics to a file
+  from extensions.pipeline_utils import store_txt_experiment_data
+  store_txt_experiment_data(metrics, 'paraphrase')
+  print('Metrics have been stored in experiments/paraphrase_metrics.txt')
+
+
+
+       
+        
+with open('metrics.txt', 'w') as f:
+    quoted_keys = [f'"{key}"' for key in metrics.keys()]
+    f.write(', '.join(quoted_keys))
+      
+
+    # with open(f'experiments/paraphrase/results.json', 'w') as f:
+    #   json.dump(metrics, f, separators=(',', ':'), indent=4)
+    #   # add a new line for next experiment
+    #   f.write('\n')
+
+      

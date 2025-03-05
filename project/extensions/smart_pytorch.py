@@ -62,3 +62,6 @@ class SMARTLoss(nn.Module):
             noise = step / (step_norm + self.epsilon)
             # Reset noise gradients for next step
             noise = noise.detach().requires_grad_()
+
+def get_smart_loss():
+    pass
