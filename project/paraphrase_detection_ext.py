@@ -38,6 +38,7 @@ from extensions.lora_layer import replace_linear_with_lora, freeze_all_but_last
 from extensions.spectrum import freeze_model, unfreeze_last
 from extensions.jacobian_reg import JacobianReg
 from extensions.pipeline_utils import store_txt_experiment_data
+from extensions.smart_pytorch import SMARTLoss
 from optimizer import AdamW
 
 
@@ -137,6 +138,9 @@ def train(args, experiment_id=1):
     jacobian_reg = JacobianReg(args.n_proj)
     
   model = model.to(device)
+  if args.smart:
+      kl_loss =nn.KLDivLoss()
+      smart_loss = SMARTLoss(model, kl_loss, num_steps=args.num_steps, step_size=args.step_size_sm, epsilon=args.epsilon_sm, noise_var=args.noise_var_sm)
 
   lr = args.lr
   optimizer = AdamW(model.parameters(), lr=lr, weight_decay=0.)
@@ -165,6 +169,8 @@ def train(args, experiment_id=1):
       loss = F.cross_entropy(logits, labels, reduction='mean')
       if args.j_reg > 0:
         loss += args.j_reg * jacobian_reg(logits, labels)
+      if args.smart:
+        loss += args.smart_lambda * smart_loss(b_ids, logits)
       accuracy += (preds == labels).sum().item()
       perplexity += torch.exp(loss).item()
 
@@ -301,6 +307,7 @@ def get_args():
   parser.add_argument("--step_size_sm", type=float, default=1e-3)
   parser.add_argument("--epsilon_sm", type=float, default=1e-6)
   parser.add_argument("--noise_var_sm", type=float, default=1e-5)
+  parser.add_argument("--smart_lambda", type=float, default=1e-3)
 
   args = parser.parse_args()
   return args

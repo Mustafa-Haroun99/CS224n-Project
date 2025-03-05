@@ -50,7 +50,10 @@ class SMARTLoss(nn.Module):
             state_perturbed = self.eval_fn(embed_perturbed)
             # Return final loss if last step (undetached state)
             if i == self.num_steps: 
-                return self.loss_last_fn(state_perturbed, state) 
+                if self.loss_last_fn is None:
+                    return self.loss_fn(state_perturbed, state)
+                else:
+                    return self.loss_last_fn(state_perturbed, state) 
             # Compute perturbation loss (detached state)
             loss = self.loss_fn(state_perturbed, state.detach())
             # Compute noise gradient ∂loss/∂noise
@@ -62,6 +65,3 @@ class SMARTLoss(nn.Module):
             noise = step / (step_norm + self.epsilon)
             # Reset noise gradients for next step
             noise = noise.detach().requires_grad_()
-
-def get_smart_loss():
-    pass
