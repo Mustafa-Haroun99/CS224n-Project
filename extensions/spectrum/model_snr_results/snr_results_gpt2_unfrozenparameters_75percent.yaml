@@ -1,0 +1,88 @@
+unfrozen_parameters:
+- ^lm_head.weight$
+- ^model.embed_tokens.weight$
+# attention_dense layers
+- gpt.gpt_layers.3.attention_dense
+- gpt.gpt_layers.5.attention_dense
+- gpt.gpt_layers.0.attention_dense
+- gpt.gpt_layers.6.attention_dense
+- gpt.gpt_layers.2.attention_dense
+- gpt.gpt_layers.4.attention_dense
+- gpt.gpt_layers.7.attention_dense
+- gpt.gpt_layers.8.attention_dense
+- gpt.gpt_layers.1.attention_dense
+# attention_layer_norm layers
+- gpt.gpt_layers.0.attention_layer_norm
+- gpt.gpt_layers.1.attention_layer_norm
+- gpt.gpt_layers.2.attention_layer_norm
+- gpt.gpt_layers.3.attention_layer_norm
+- gpt.gpt_layers.4.attention_layer_norm
+- gpt.gpt_layers.5.attention_layer_norm
+- gpt.gpt_layers.6.attention_layer_norm
+- gpt.gpt_layers.7.attention_layer_norm
+- gpt.gpt_layers.8.attention_layer_norm
+# gpt.final_layer_norm layers
+# gpt.pooler_dense layers
+# gpt.pos_embedding layers
+# gpt.word_embedding layers
+# interm_dense layers
+- gpt.gpt_layers.1.interm_dense
+- gpt.gpt_layers.2.interm_dense
+- gpt.gpt_layers.8.interm_dense
+- gpt.gpt_layers.3.interm_dense
+- gpt.gpt_layers.9.interm_dense
+- gpt.gpt_layers.7.interm_dense
+- gpt.gpt_layers.10.interm_dense
+- gpt.gpt_layers.4.interm_dense
+- gpt.gpt_layers.11.interm_dense
+# out_dense layers
+- gpt.gpt_layers.1.out_dense
+- gpt.gpt_layers.0.out_dense
+- gpt.gpt_layers.2.out_dense
+- gpt.gpt_layers.5.out_dense
+- gpt.gpt_layers.7.out_dense
+- gpt.gpt_layers.6.out_dense
+- gpt.gpt_layers.4.out_dense
+- gpt.gpt_layers.8.out_dense
+- gpt.gpt_layers.3.out_dense
+# out_layer_norm layers
+- gpt.gpt_layers.0.out_layer_norm
+- gpt.gpt_layers.1.out_layer_norm
+- gpt.gpt_layers.2.out_layer_norm
+- gpt.gpt_layers.3.out_layer_norm
+- gpt.gpt_layers.4.out_layer_norm
+- gpt.gpt_layers.5.out_layer_norm
+- gpt.gpt_layers.6.out_layer_norm
+- gpt.gpt_layers.7.out_layer_norm
+- gpt.gpt_layers.8.out_layer_norm
+# paraphrase_detection_head layers
+# self_attention.key layers
+- gpt.gpt_layers.7.self_attention.key
+- gpt.gpt_layers.10.self_attention.key
+- gpt.gpt_layers.11.self_attention.key
+- gpt.gpt_layers.5.self_attention.key
+- gpt.gpt_layers.9.self_attention.key
+- gpt.gpt_layers.6.self_attention.key
+- gpt.gpt_layers.8.self_attention.key
+- gpt.gpt_layers.4.self_attention.key
+- gpt.gpt_layers.1.self_attention.key
+# self_attention.query layers
+- gpt.gpt_layers.5.self_attention.query
+- gpt.gpt_layers.7.self_attention.query
+- gpt.gpt_layers.8.self_attention.query
+- gpt.gpt_layers.10.self_attention.query
+- gpt.gpt_layers.9.self_attention.query
+- gpt.gpt_layers.6.self_attention.query
+- gpt.gpt_layers.11.self_attention.query
+- gpt.gpt_layers.1.self_attention.query
+- gpt.gpt_layers.4.self_attention.query
+# self_attention.value layers
+- gpt.gpt_layers.3.self_attention.value
+- gpt.gpt_layers.0.self_attention.value
+- gpt.gpt_layers.4.self_attention.value
+- gpt.gpt_layers.2.self_attention.value
+- gpt.gpt_layers.8.self_attention.value
+- gpt.gpt_layers.5.self_attention.value
+- gpt.gpt_layers.1.self_attention.value
+- gpt.gpt_layers.7.self_attention.value
+- gpt.gpt_layers.6.self_attention.value
