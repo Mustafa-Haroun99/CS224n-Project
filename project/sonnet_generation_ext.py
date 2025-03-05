@@ -34,6 +34,7 @@ from extensions.spectrum import freeze_model, unfreeze_last
 from extensions.jacobian_reg import JacobianReg
 from extensions.pipeline_utils import store_txt_experiment_data, generate_experiment_id
 from extensions.smart_pytorch import SMARTLoss
+from extensions.early_stopper import EarlyStopping
 
 from optimizer import AdamW
 
@@ -161,6 +162,9 @@ def train(args, experiment_id=1):
     args = add_arguments(args)
     model = SonnetGPT(args)
     model = model.to(device)
+   
+   # Early stopping
+    early_stopping = EarlyStopping(patience=args.patience, delta=args.delta)
     
     # Applying LoRA
     if args.lora:
@@ -228,12 +232,14 @@ def train(args, experiment_id=1):
             print(f'{batch[1]}{output[1]}\n\n')
 
         # TODO: consider a stopping condition to prevent overfitting on the small dataset of sonnets.
+        early_stopping(train_loss, model)
+        if early_stopping.early_stop:
+            print("Early stopping")
+            break
         save_model(model, optimizer, args, f'{epoch}_{args.filepath}')
         
     metrics= {
         'experiment_id': experiment_id,
-        "best_dev_acc": best_dev_acc,
-        "best_dev_f1": dev_f1,
         'epochs': args.epochs,
         'lr': args.lr,
         'batch_size': args.batch_size,
@@ -247,9 +253,8 @@ def train(args, experiment_id=1):
         'spectrum': args.spectrum,
         'smart': args.smart,
         'smart_lambda': args.smart_lambda,
-        'loss': train_loss,
-        'accuracy': accuracy,
-        'perplexity': perplexity
+        'loss_train': train_loss,
+        'perplexity_train': perplexity
         }
     return metrics
 
@@ -325,6 +330,9 @@ def get_args():
     parser.add_argument("--epsilon_sm", type=float, default=1e-6)
     parser.add_argument("--noise_var_sm", type=float, default=1e-5)
     parser.add_argument("--smart_lambda", type=float, default=1e-3)
+    ### Early Stopping Patience
+    parser.add_argument("--patience", type=int, default=5)
+    parser.add_argument("--delta", type=float, default=1e-4)
 
     args = parser.parse_args()
     return args

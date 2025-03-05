@@ -105,7 +105,7 @@ def train(args, experiment_id=1):
   """Train GPT-2 for paraphrase detection on the Quora dataset."""
   device = torch.device('cuda') if args.use_gpu and torch.cuda.is_available() else torch.device('cpu')
   experiment_path = args.file_path.replace('.pt', '').replace('experiments/', 'runs/')
-  writer = SummaryWriter(f'{experiment_path}_{experiment_id}') # TODO: FIX PATH DEPENDING ON EXPERIMENT ID
+  writer = SummaryWriter(f'{experiment_path}_{experiment_id}')
   # Create the data and its corresponding datasets and dataloader.
   para_train_data = load_paraphrase_data(args.para_train)
   para_dev_data = load_paraphrase_data(args.para_dev)
@@ -170,6 +170,7 @@ def train(args, experiment_id=1):
       labels = torch.where(labels == 8505, torch.tensor(1, device=device), torch.tensor(0, device=device))
       loss = F.cross_entropy(logits, labels, reduction='mean')
       perplexity += torch.exp(loss).item()
+      
       if args.jacobian:
         loss += args.jreg_lambda * jacobian_reg(logits, labels)
       if args.smart:
@@ -344,7 +345,7 @@ if __name__ == "__main__":
   args.filepath =  os.path.join('experiments', model_path)
   seed_everything(args.seed)  # Fix the seed for reproducibility.
   metrics = train(args, experiment_id)
-  metrics = test(args)
+  metrics = test(args, metrics)
   store_txt_experiment_data(metrics, 'sonnet')
   print('Metrics have been stored in experiments/sonnet_metrics.txt')
 
