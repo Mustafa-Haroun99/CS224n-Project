@@ -80,21 +80,26 @@ class GPT2Model(GPTPreTrainedModel):
     """
     # Get the embedding for each input token.
     embedding_output = self.embed(input_ids=input_ids)
-    # Feed to a transformer (a stack of GPTLayers).
-    sequence_output = self.encode(embedding_output, attention_mask=attention_mask)
-    
-    # Apply final layer normalization
-    sequence_output = self.final_layer_norm(sequence_output)
-
-    # Get the hidden state of the final token.
-    last_non_pad_idx = attention_mask.sum(dim=1) - 1  # Subtract 1 to get last index
-    last_token = sequence_output[torch.arange(sequence_output.shape[0]), last_non_pad_idx]
-
-    output= {'last_hidden_state': sequence_output, 'last_token': last_token}
+    output = self.run_transformer(embedding_output, attention_mask)
     if return_embeddings:
       output['embeddings'] = embedding_output
     return output
 
+  def run_transformer(self, embedding_output,
+                      attention_mask, ):
+      # Feed to a transformer (a stack of GPTLayers).
+      sequence_output = self.encode(embedding_output, attention_mask=attention_mask)
+      
+      # Apply final layer normalization
+      sequence_output = self.final_layer_norm(sequence_output)
+
+      # Get the hidden state of the final token.
+      last_non_pad_idx = attention_mask.sum(dim=1) - 1  # Subtract 1 to get last index
+      last_token = sequence_output[torch.arange(sequence_output.shape[0]), last_non_pad_idx]
+
+      output= {'last_hidden_state': sequence_output, 'last_token': last_token}
+      return output
+  
   def hidden_state_to_token(self, hidden_state):
     """
     GPT-2 uses weight tying with the input word embeddings. The logits are the dot product between output hidden states

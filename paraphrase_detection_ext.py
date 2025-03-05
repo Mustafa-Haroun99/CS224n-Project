@@ -39,6 +39,7 @@ from extensions.spectrum import freeze_model, unfreeze_last
 from extensions.jacobian_reg import JacobianReg
 from extensions.pipeline_utils import store_txt_experiment_data,    generate_experiment_id
 from extensions.smart_pytorch import SMARTLoss
+# from extensions.dropout_modifier import modify_transformer_dropout
 from optimizer import AdamW
 
 
@@ -120,6 +121,8 @@ def train(args, experiment_id=1):
 
   args = add_arguments(args)
   model = ParaphraseGPT(args)
+  # Applying Dropout
+  model = modify_transformer_dropout(model, args)
   
   # Applying LoRA
   if args.lora:

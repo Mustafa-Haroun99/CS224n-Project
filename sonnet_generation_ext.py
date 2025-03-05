@@ -34,6 +34,7 @@ from extensions.jacobian_reg import JacobianReg
 from extensions.pipeline_utils import store_txt_experiment_data, generate_experiment_id
 from extensions.smart_pytorch import SMARTLoss
 from extensions.early_stopper import EarlyStopping
+from extensions.dropout_modifier import modify_model_dropout
 
 from optimizer import AdamW
 
@@ -77,6 +78,13 @@ class SonnetGPT(nn.Module):
         output = self.gpt.hidden_state_to_token(outputs['last_hidden_state'])
         if return_input_embeddings:
             return output, outputs['embeddings']
+        return output
+    
+    def forward_with_embeddings(self, embedding_input, attention_mask):
+             ### YOUR CODE HERE
+        outputs = self.gpt.run_transformer(embedding_input, attention_mask=attention_mask)
+        # return logits
+        output = self.gpt.hidden_state_to_token(outputs['last_hidden_state'])
         return output
 
 
@@ -166,8 +174,12 @@ def train(args, experiment_id=1):
     held_out_sonnet_dataset = SonnetsDataset(args.held_out_sonnet_path)
 
     args = add_arguments(args)
+
     model = SonnetGPT(args)
-    
+
+    # Adding change in dropout rates
+    if args.change_dropout:
+        modify_model_dropout(model, args.dropout, args.attn_dropout)
    
    # Early stopping
     early_stopping = EarlyStopping(patience=args.patience, delta=args.delta)
@@ -197,7 +209,7 @@ def train(args, experiment_id=1):
     # Smart Regularizer instantiation
     if args.smart:
         kl_loss =nn.KLDivLoss()
-        smart_loss = SMARTLoss(model, kl_loss, num_steps=args.num_steps, step_size=args.step_size_sm, epsilon=args.epsilon_sm, noise_var=args.noise_var_sm)
+        smart_loss = SMARTLoss(model.forward_with_embeddings, kl_loss, num_steps=args.num_steps, step_size=args.step_size_sm, epsilon=args.epsilon_sm, noise_var=args.noise_var_sm)
     
 
     lr = args.lr
@@ -210,8 +222,11 @@ def train(args, experiment_id=1):
         train_loss = 0
         num_batches = 0
         perplexity = 0
-
+        i =0
         for batch in tqdm(sonnet_dataloader, desc=f'train-{epoch}', disable=TQDM_DISABLE):
+            if i == 3:
+                import sys;
+                sys.exit()
             # Get the input and move it to the gpu (I do not recommend training this model on CPU).
             b_ids, b_mask = batch['token_ids'], batch['attention_mask']
             b_ids = b_ids.to(device)
@@ -220,7 +235,7 @@ def train(args, experiment_id=1):
             # Compute the loss, gradients, and update the model's parameters.
             optimizer.zero_grad()
             logits, x_embed = model(b_ids, b_mask, return_input_embeddings=True)
-            # print(logits)
+            
             logits = rearrange(logits[:, :-1].contiguous(), 'b t d -> (b t) d')  # Ignore the last prediction in the sequence.
             labels = b_ids[:, 1:].contiguous().flatten()  # Ignore the first token to compose the labels.
             loss = F.cross_entropy(logits, labels, reduction='mean')
@@ -228,7 +243,11 @@ def train(args, experiment_id=1):
             if args.jacobian:
                 loss += args.jreg_lambda * jacobian_reg(x_embed, logits)
             if args.smart:
-                loss += args.smart_lambda * smart_loss(x_embed, logits,reshape_required=True)
+                print(logits)
+                sm_loss = smart_loss(x_embed, logits,reshape_required=True, attn_masks=b_mask)
+                print(sm_loss)
+            
+                loss += args.smart_lambda * sm_loss
             
             loss.backward()
             optimizer.step()
@@ -360,11 +379,12 @@ def get_args():
     parser.add_argument("--step_size_sm", type=float, default=1e-3)
     parser.add_argument("--epsilon_sm", type=float, default=1e-6)
     parser.add_argument("--noise_var_sm", type=float, default=1e-5)
-    parser.add_argument("--smart_lambda", type=float, default=1e-3)
+    parser.add_argument("--smart_lambda", type=float, default=1e-5)
     ### Early Stopping Patience
     parser.add_argument("--patience", type=int, default=5)
     parser.add_argument("--delta", type=float, default=1e-4)
     ## Dropout Parameter Experiments
+    parser.add_argument("--change_dropout", action='store_true')
     parser.add_argument("--dropout", type=float, default=0.1)
     parser.add_argument('--attn_dropout', type=float, default=0.1)
 

@@ -41,14 +41,14 @@ class SMARTLoss(nn.Module):
         self.epsilon = epsilon 
         self.noise_var = noise_var
         
-    def forward(self, embed: Tensor, state: Tensor, reshape_required=False) -> Tensor:
+    def forward(self, embed: Tensor, state: Tensor, reshape_required=False, attn_masks=None) -> Tensor:
         noise = torch.randn_like(embed, requires_grad=True) * self.noise_var
-
+        # embed = embed.detach().requires_grad_()
         # Indefinite loop with counter 
         for i in count():
             # Compute perturbed embed and states 
             embed_perturbed = embed + noise 
-            state_perturbed = self.eval_fn(embed_perturbed)
+            state_perturbed = self.eval_fn(embed_perturbed, attn_masks)
             if reshape_required:
                 state_perturbed = rearrange(state_perturbed[:, :-1].contiguous(), 'b t d -> (b t) d')  # Ignore the last prediction in the 
             # Return final loss if last step (undetached state)
