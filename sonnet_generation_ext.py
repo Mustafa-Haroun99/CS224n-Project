@@ -224,8 +224,8 @@ def train(args, experiment_id=1):
         perplexity = 0
         jacobian_train_loss = 0
         smart_train_loss = 0
+        I = 0
         for batch in tqdm(sonnet_dataloader, desc=f'train-{epoch}', disable=TQDM_DISABLE):
-
             # Get the input and move it to the gpu (I do not recommend training this model on CPU).
             b_ids, b_mask = batch['token_ids'], batch['attention_mask']
             b_ids = b_ids.to(device)
