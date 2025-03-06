@@ -8,6 +8,7 @@ model_test_paraphrase is suitable for the test dataloader where label informatio
 """
 
 import torch
+import torch.nn.functional as F
 from sklearn.metrics import f1_score, accuracy_score
 from tqdm import tqdm
 import numpy as np
@@ -20,27 +21,38 @@ TQDM_DISABLE = False
 
 
 @torch.no_grad()
-def model_eval_paraphrase(dataloader, model, device):
+def model_eval_paraphrase(dataloader, model, device, return_loss=False):
   model.eval()  # Switch to eval model, will turn off randomness like dropout.
   y_true, y_pred, sent_ids = [], [], []
+  I = 0
+  loss = 0
   for step, batch in enumerate(tqdm(dataloader, desc=f'eval', disable=TQDM_DISABLE)):
     b_ids, b_mask, b_sent_ids, labels = batch['token_ids'], batch['attention_mask'], batch['sent_ids'], batch[
       'labels'].flatten()
-
+    # if I == 10: # FOR TESTING
+    #   break
+    I +=1
     b_ids = b_ids.to(device)
     b_mask = b_mask.to(device)
-
-    logits = model(b_ids, b_mask).cpu().numpy()
+    logits = model(b_ids, b_mask)
+    
+    logits = model(b_ids, b_mask)
+    labels_i = labels.to(device)
+    labels_i = torch.where(labels_i == 8505, torch.tensor(1, device=device), torch.tensor(0, device=device))
+    loss += F.cross_entropy(logits, labels_i, reduction='mean')
+    logits = logits.cpu().numpy()
     preds = np.argmax(logits, axis=1).flatten()
 
-    y_true.extend(labels)
+    y_true.extend(labels_i.cpu().numpy())
     y_pred.extend(preds)
     sent_ids.extend(b_sent_ids)
-
+  loss = loss / len(dataloader)
   f1 = f1_score(y_true, y_pred, average='macro')
   acc = accuracy_score(y_true, y_pred)
-
-  return acc, f1, y_pred, y_true, sent_ids
+  if return_loss:
+    return acc, f1, y_pred, y_true, sent_ids, loss
+  else:
+    return acc, f1, y_pred, y_true, sent_ids
 
 
 @torch.no_grad()

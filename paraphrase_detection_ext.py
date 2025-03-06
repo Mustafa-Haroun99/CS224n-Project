@@ -176,7 +176,11 @@ def train(args, experiment_id=1):
     perplexity = 0
     smart_loss_train = 0
     jacobian_loss_train = 0
+    I = 0
     for batch in tqdm(para_train_dataloader, desc=f'train-{epoch}', disable=TQDM_DISABLE):
+      # if I==10: # FOR TESTING
+      #    break
+      # I+=1
       # Get the input and move it to the gpu (I do not recommend training this model on CPU).
       b_ids, b_mask, labels = batch['token_ids'], batch['attention_mask'], batch['labels'].flatten()
       b_ids = b_ids.to(device)
@@ -213,13 +217,18 @@ def train(args, experiment_id=1):
 
     train_loss = train_loss / num_batches
     accuracy = accuracy / len(para_train_data)
-    dev_acc, dev_f1, *_ = model_eval_paraphrase(para_dev_dataloader, model, device)
+    dev_acc, dev_f1, _, _ ,_, eval_loss= model_eval_paraphrase(para_dev_dataloader, model, device, return_loss=True)
+    perplexity_eval = torch.exp(eval_loss).item()
+    eval_loss = eval_loss.item()
+
     ## Tensoboard computations
     perplexity = perplexity / num_batches
     current_lr = optimizer.param_groups[0]['lr']
     writer.add_scalar("Train/Loss", train_loss, epoch)
     writer.add_scalar("Train/Accuracy", accuracy, epoch)
     writer.add_scalar("Train/Perplexity", perplexity, epoch)
+    writer.add_scalar("Dev/Loss", eval_loss, epoch)
+    writer.add_scalar("Dev/Perplexity", perplexity_eval, epoch)
     writer.add_scalar("Dev/Accuracy", dev_acc, epoch)
     writer.add_scalar("Dev/F1", dev_f1, epoch)
     if args.jacobian:
@@ -233,36 +242,45 @@ def train(args, experiment_id=1):
       save_model_to = save_model_dir + f'/paraphrase_{experiment_id}_{epoch}.pt'
       save_model(model, optimizer, args, save_model_to)
       keep_latest_epoch_checkpoint(args.filepath.replace('.pt', '/'), epoch)
-
-    ## Applying early stopping
+      best_epoch = epoch
+    if epoch == 0:
+      save_model_to = save_model_dir + f'/paraphrase_{experiment_id}_{epoch}.pt'
+      save_model(model, optimizer, args, save_model_to)
+      best_epoch = epoch
+       
     early_stopping(dev_acc, model)
     if early_stopping.early_stop:
-        print(f"Early Stopping at epoch {epoch}")
+        print("Early stopping")
         break
+        
 
     print(f"Epoch {epoch}: train loss :: {train_loss :.3f}, dev acc :: {dev_acc :.3f}")
 
+  
   metrics= {
-    'experiment_id': experiment_id,
-    "best_dev_acc": best_dev_acc,
-    "best_dev_f1": dev_f1,
-    'epochs': args.epochs,
-    'lr': args.lr,
-    'batch_size': args.batch_size,
-    'model_size': args.model_size,
-    'j_reg': args.j_reg,
-    'n_proj': args.n_proj,
-    'rank': args.rank,
-    'alpha': args.alpha,
-    'lora': args.lora,
-    'top_percent': args.top_percent,
-    'spectrum': args.spectrum,
-    'smart': args.smart,
-    'smart_lambda': args.smart_lambda,
-    'loss': train_loss,
-    'accuracy': accuracy,
-    'perplexity': perplexity
-    }
+        'experiment_id': experiment_id,
+        'epochs': args.epochs,
+        'lr': args.lr,
+        "best_dev_acc": best_dev_acc,
+        "best_dev_f1": dev_f1,
+        'batch_size': args.batch_size,
+        'model_size': args.model_size,
+        'j_reg': args.jacobian,
+        'jreg_lambda': args.jreg_lambda,
+        'n_proj': args.n_proj,
+        'lora': args.lora,
+        'rank': args.rank,
+        'alpha': args.alpha,    
+        'top_percent': args.top_percent,
+        'spectrum': args.spectrum,
+        'smart': args.smart,
+        'smart_lambda': args.smart_lambda,
+        'loss_train': train_loss,
+        'perplexity_train': perplexity,
+        'last_epoch': best_epoch, 
+        'dropout': args.dropout,
+        'attn_dropout': args.attn_dropout
+        }
   return metrics
 
 @torch.no_grad()
@@ -278,8 +296,9 @@ def test(args, metrics=None):
         device = torch.device("cpu")
   else:
       device = torch.device("cpu")
-
-  saved = torch.load(args.filepath)
+  last_epoch = metrics['last_epoch']
+  load_file_path = args.filepath.replace('.pt', f'/paraphrase_{experiment_id}_{last_epoch}.pt')
+  saved = torch.load(load_file_path)
 
   model = ParaphraseGPT(saved['args'])
   if args.lora:
@@ -305,16 +324,18 @@ def test(args, metrics=None):
   dev_para_acc, _, dev_para_y_pred, _, dev_para_sent_ids = model_eval_paraphrase(para_dev_dataloader, model, device)
   print(f"dev paraphrase acc :: {dev_para_acc :.3f}")
   test_para_y_pred, test_para_sent_ids = model_test_paraphrase(para_test_dataloader, model, device)
-
-  with open(args.para_dev_out, "w+") as f:
+  store_predictions_path_dev = args.filepath.replace('.pt', args.para_dev_out.replace('predictions/', '/'))
+  store_predictions_path_test = args.filepath.replace('.pt', args.para_test_out.replace('predictions/', '/'))
+  label_mapping = {0: 3919, 1: 8505}
+  with open(store_predictions_path_dev, "w+") as f:
     f.write(f"id \t Predicted_Is_Paraphrase \n")
     for p, s in zip(dev_para_sent_ids, dev_para_y_pred):
-      f.write(f"{p}, {s} \n")
+      f.write(f"{p}, {label_mapping[s]} \n")
 
-  with open(args.para_test_out, "w+") as f:
+  with open(store_predictions_path_test, "w+") as f:
     f.write(f"id \t Predicted_Is_Paraphrase \n")
     for p, s in zip(test_para_sent_ids, test_para_y_pred):
-      f.write(f"{p}, {s} \n")
+      f.write(f"{p}, {label_mapping[s]} \n")
   if metrics is not None:
       metrics['dev_para_acc'] = dev_para_acc # TODO: ADD METRICS FOR THE  TEST SET
   return metrics
@@ -330,7 +351,7 @@ def get_args():
   parser.add_argument("--para_dev_out", type=str, default="predictions/para-dev-output.csv")
   parser.add_argument("--para_test_out", type=str, default="predictions/para-test-output.csv")
   parser.add_argument("--seed", type=int, default=11711)
-  parser.add_argument("--epochs", type=int, default=10)
+  parser.add_argument("-e", "--epochs", type=int, default=10)
   parser.add_argument("--use_gpu", action='store_true')
 
   parser.add_argument("--batch_size", help='sst: 64, cfimdb: 8 can fit a 12GB GPU', type=int, default=8)
