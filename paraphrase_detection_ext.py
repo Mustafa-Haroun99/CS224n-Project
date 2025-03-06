@@ -110,7 +110,7 @@ def save_model(model, optimizer, args, filepath):
 def train(args, experiment_id=1):
   """Train GPT-2 for paraphrase detection on the Quora dataset."""
   device = torch.device('cuda') if args.use_gpu and torch.cuda.is_available() else torch.device('cpu')
-  experiment_path = args.file_path.replace('.pt', '').replace('experiments/', 'runs/')
+  experiment_path = args.filepath.replace('.pt', '').replace('experiments/', 'runs/')
   writer = SummaryWriter(f'{experiment_path}_{experiment_id}')
   save_model_dir = args.filepath.replace('.pt', f'')
   print(f"Saving model to {save_model_dir}")
@@ -235,7 +235,8 @@ def train(args, experiment_id=1):
       keep_latest_epoch_checkpoint(args.filepath.replace('.pt', '/'), epoch)
 
     ## Applying early stopping
-    if early_stopping.step(dev_acc):
+    early_stopping(dev_acc, model)
+    if early_stopping.early_stop:
         print(f"Early Stopping at epoch {epoch}")
         break
 
