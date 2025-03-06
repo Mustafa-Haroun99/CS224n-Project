@@ -232,8 +232,11 @@ def train(args, experiment_id=1):
 
             # Compute the loss, gradients, and update the model's parameters.
             optimizer.zero_grad()
-            logits, x_embed = model(b_ids, b_mask, return_input_embeddings=True)
-            
+            if args.smart or args.jacobian:
+                logits, x_embed = model(b_ids, b_mask, return_input_embeddings=True)
+            else:
+                logits = model(b_ids, b_mask)
+                
             logits = rearrange(logits[:, :-1].contiguous(), 'b t d -> (b t) d')  # Ignore the last prediction in the sequence.
             labels = b_ids[:, 1:].contiguous().flatten()  # Ignore the first token to compose the labels.
             loss = F.cross_entropy(logits, labels, reduction='mean')
