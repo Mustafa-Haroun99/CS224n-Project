@@ -267,6 +267,10 @@ def test(args, metrics=None):
   saved = torch.load(args.filepath)
 
   model = ParaphraseGPT(saved['args'])
+  if args.lora:
+        freeze_all_but_last(model)
+        model = replace_linear_with_lora(model, args.rank, args.alpha)
+
   model.load_state_dict(saved['model'])
   model = model.to(device)
   model.eval()

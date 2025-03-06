@@ -222,7 +222,8 @@ def train(args, experiment_id=1):
         train_loss = 0
         num_batches = 0
         perplexity = 0
-        i =0
+        jacobian_train_loss = 0
+        smart_train_loss = 0
         for batch in tqdm(sonnet_dataloader, desc=f'train-{epoch}', disable=TQDM_DISABLE):
 
             # Get the input and move it to the gpu (I do not recommend training this model on CPU).
@@ -236,28 +237,39 @@ def train(args, experiment_id=1):
                 logits, x_embed = model(b_ids, b_mask, return_input_embeddings=True)
             else:
                 logits = model(b_ids, b_mask)
-                
+
             logits = rearrange(logits[:, :-1].contiguous(), 'b t d -> (b t) d')  # Ignore the last prediction in the sequence.
             labels = b_ids[:, 1:].contiguous().flatten()  # Ignore the first token to compose the labels.
             loss = F.cross_entropy(logits, labels, reduction='mean')
             perplexity += torch.exp(loss).item()
             if args.jacobian:
-                loss += args.jreg_lambda * jacobian_reg(x_embed, logits)
+                jacobian_lss = jacobian_reg(x_embed, logits)
+                loss += args.jreg_lambda * jacobian_lss
+                jacobian_train_loss += jacobian_lss.item()
             if args.smart:
                 sm_loss = smart_loss(x_embed, logits,reshape_required=True, attn_masks=b_mask)
+                smart_train_loss += sm_loss.item()
             
                 loss += args.smart_lambda * sm_loss
             
             loss.backward()
             optimizer.step()
+        
+
 
             train_loss += loss.item()
             num_batches += 1
-        
+        current_lr = optimizer.param_groups[0]['lr']
         train_loss = train_loss / num_batches
         perplexity = perplexity / num_batches
+        jacobian_train_loss = jacobian_train_loss / num_batches
+        smart_train_loss = smart_train_loss / num_batches
         writer.add_scalar('Loss/train', train_loss, epoch)
         writer.add_scalar('Perplexity/train', perplexity, epoch)
+        writer.add_scalar('Jacobian/train', jacobian_train_loss, epoch)
+        writer.add_scalar('SMART/train', smart_train_loss, epoch)
+        writer.add_scalar('Learning Rate', current_lr, epoch)
+        writer.flush()
         print()
 
         print(f"Epoch {epoch}: train loss :: {train_loss :.3f}.")
