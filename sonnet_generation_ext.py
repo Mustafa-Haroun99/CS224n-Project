@@ -33,6 +33,7 @@ from extensions.spectrum import freeze_model, unfreeze_last
 from extensions.jacobian_reg import JacobianReg
 from extensions.pipeline_utils import store_txt_experiment_data, generate_experiment_id, keep_latest_epoch_checkpoint
 from extensions.smart_pytorch import SMARTLoss
+from extensions.smart_loss import kl_loss,sym_kl_loss
 from extensions.early_stopper import EarlyStopping
 from extensions.dropout_modifier import modify_model_dropout
 
@@ -208,8 +209,7 @@ def train(args, experiment_id=1):
     
     # Smart Regularizer instantiation
     if args.smart:
-        kl_loss =nn.KLDivLoss()
-        smart_loss = SMARTLoss(model.forward_with_embeddings, kl_loss, num_steps=args.num_steps, step_size=args.step_size_sm, epsilon=args.epsilon_sm, noise_var=args.noise_var_sm)
+        smart_loss = SMARTLoss(model.forward_with_embeddings,kl_loss, loss_last_fn = sym_kl_loss, num_steps=args.num_steps, step_size=args.step_size_sm, epsilon=args.epsilon_sm, noise_var=args.noise_var_sm)
     
 
     lr = args.lr
@@ -257,6 +257,7 @@ def train(args, experiment_id=1):
         perplexity = perplexity / num_batches
         writer.add_scalar('Loss/train', train_loss, epoch)
         writer.add_scalar('Perplexity/train', perplexity, epoch)
+        print()
 
         print(f"Epoch {epoch}: train loss :: {train_loss :.3f}.")
         print('Generating several output sonnets...')
@@ -362,7 +363,7 @@ def get_args():
     
     # Jacobian Regularization Parameters
     parser.add_argument("--jacobian", action='store_true')
-    parser.add_argument("--jreg_lambda", type=float, default=0.1)
+    parser.add_argument("--jreg_lambda", type=float, default=1e-4)
     parser.add_argument("--n_proj", type=int, default=1) # keep this as it is
     # LoRA parameters
     parser.add_argument("--lora", action='store_true')
