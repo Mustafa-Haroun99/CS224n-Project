@@ -39,6 +39,7 @@ from extensions.spectrum import freeze_model, unfreeze_last
 from extensions.jacobian_reg import JacobianReg
 from extensions.pipeline_utils import store_txt_experiment_data,    generate_experiment_id
 from extensions.smart_pytorch import SMARTLoss
+from extensions.smart_loss import kl_loss, sym_kl_loss
 from extensions.dropout_modifier import modify_model_dropout
 from extensions.early_stopper import EarlyStopping
 from optimizer import AdamW
@@ -69,7 +70,7 @@ class ParaphraseGPT(nn.Module):
     for param in self.gpt.parameters():
       param.requires_grad = True
 
-  def forward(self, input_ids, attention_mask):
+  def forward(self, input_ids, attention_mask, return_embeddings=False):
     """
     TODO: Predict the label of the token using the paraphrase_detection_head Linear layer.
 
@@ -83,10 +84,13 @@ class ParaphraseGPT(nn.Module):
     """
 
     'Takes a batch of sentences and produces embeddings for them.'
-    outputs = self.gpt(input_ids=input_ids, attention_mask=attention_mask)
+    outputs = self.gpt(input_ids=input_ids, attention_mask=attention_mask, return_embeddings=return_embeddings)
     last_hidden_state = outputs['last_hidden_state']
     logits = self.paraphrase_detection_head(last_hidden_state[:, -1, :])  
-    return logits
+    if return_embeddings:
+      return logits, outputs['embeddings']
+    else:
+      return logits
 
 
 def save_model(model, optimizer, args, filepath):
@@ -153,8 +157,7 @@ def train(args, experiment_id=1):
   
   # Smart Regularizer instantiation
   if args.smart:
-      kl_loss =nn.KLDivLoss()
-      smart_loss = SMARTLoss(model.forward_with_embeddings, kl_loss, num_steps=args.num_steps, step_size=args.step_size_sm, epsilon=args.epsilon_sm, noise_var=args.noise_var_sm)
+      smart_loss = SMARTLoss(model.forward_with_embeddings,kl_loss, loss_last_fn = sym_kl_loss, num_steps=args.num_steps, step_size=args.step_size_sm, epsilon=args.epsilon_sm, noise_var=args.noise_var_sm)
 
   lr = args.lr
   optimizer = AdamW(model.parameters(), lr=lr, weight_decay=0.)
@@ -177,16 +180,21 @@ def train(args, experiment_id=1):
 
       # Compute the loss, gradients, and update the model's parameters.
       optimizer.zero_grad()
-      logits = model(b_ids, b_mask)
+      if args.jacobian or args.smart:
+         logits, x_embed = model(b_ids, b_mask, return_embeddings=True)
+      else:
+        logits = model(b_ids, b_mask)
       preds = torch.argmax(logits, dim=1)
       labels = torch.where(labels == 8505, torch.tensor(1, device=device), torch.tensor(0, device=device))
       loss = F.cross_entropy(logits, labels, reduction='mean')
       perplexity += torch.exp(loss).item()
       
       if args.jacobian:
-        loss += args.jreg_lambda * jacobian_reg(logits, labels)
+          jacobian_lss = jacobian_reg(x_embed, logits)
+          loss += args.jreg_lambda * jacobian_lss
       if args.smart:
-        loss += args.smart_lambda * smart_loss(b_ids, logits)
+          sm_loss = smart_loss(x_embed, logits,reshape_required=True, attn_masks=b_mask)
+          loss += args.smart_lambda * sm_loss
       accuracy += (preds == labels).sum().item()
       
 
@@ -211,6 +219,11 @@ def train(args, experiment_id=1):
     if dev_acc > best_dev_acc:
       best_dev_acc = dev_acc
       save_model(model, optimizer, args, args.filepath) #TODO: MODIFY THIS SAVE FILE PATH
+
+    ## Applying early stopping
+    if early_stopping.step(dev_acc):
+        print(f"Early Stopping at epoch {epoch}")
+        break
 
     print(f"Epoch {epoch}: train loss :: {train_loss :.3f}, dev acc :: {dev_acc :.3f}")
 

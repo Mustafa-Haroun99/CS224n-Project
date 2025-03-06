@@ -241,9 +241,7 @@ def train(args, experiment_id=1):
             if args.jacobian:
                 loss += args.jreg_lambda * jacobian_reg(x_embed, logits)
             if args.smart:
-                print(logits)
                 sm_loss = smart_loss(x_embed, logits,reshape_required=True, attn_masks=b_mask)
-                print(sm_loss)
             
                 loss += args.smart_lambda * sm_loss
             
@@ -378,7 +376,7 @@ def get_args():
     parser.add_argument("--step_size_sm", type=float, default=1e-3)
     parser.add_argument("--epsilon_sm", type=float, default=1e-6)
     parser.add_argument("--noise_var_sm", type=float, default=1e-5)
-    parser.add_argument("--smart_lambda", type=float, default=1e-5)
+    parser.add_argument("--smart_lambda", type=float, default=0.02)
     ### Early Stopping Patience
     parser.add_argument("--patience", type=int, default=5)
     parser.add_argument("--delta", type=float, default=1e-4)
