@@ -37,7 +37,7 @@ from models.gpt2 import GPT2Model
 from extensions.lora_layer import replace_linear_with_lora, freeze_all_but_last
 from extensions.spectrum import freeze_model, unfreeze_last
 from extensions.jacobian_reg import JacobianReg
-from extensions.pipeline_utils import store_txt_experiment_data,    generate_experiment_id
+from extensions.pipeline_utils import store_txt_experiment_data,    generate_experiment_id, keep_latest_epoch_checkpoint
 from extensions.smart_pytorch import SMARTLoss
 from extensions.smart_loss import kl_loss, sym_kl_loss
 from extensions.dropout_modifier import modify_model_dropout
@@ -112,6 +112,9 @@ def train(args, experiment_id=1):
   device = torch.device('cuda') if args.use_gpu and torch.cuda.is_available() else torch.device('cpu')
   experiment_path = args.file_path.replace('.pt', '').replace('experiments/', 'runs/')
   writer = SummaryWriter(f'{experiment_path}_{experiment_id}')
+  save_model_dir = args.filepath.replace('.pt', f'')
+  print(f"Saving model to {save_model_dir}")
+  os.makedirs(save_model_dir, exist_ok=True)
   # Create the data and its corresponding datasets and dataloader.
   para_train_data = load_paraphrase_data(args.para_train)
   para_dev_data = load_paraphrase_data(args.para_dev)
@@ -171,6 +174,8 @@ def train(args, experiment_id=1):
     num_batches = 0
     accuracy = 0
     perplexity = 0
+    smart_loss_train = 0
+    jacobian_loss_train = 0
     for batch in tqdm(para_train_dataloader, desc=f'train-{epoch}', disable=TQDM_DISABLE):
       # Get the input and move it to the gpu (I do not recommend training this model on CPU).
       b_ids, b_mask, labels = batch['token_ids'], batch['attention_mask'], batch['labels'].flatten()
@@ -192,9 +197,11 @@ def train(args, experiment_id=1):
       if args.jacobian:
           jacobian_lss = jacobian_reg(x_embed, logits)
           loss += args.jreg_lambda * jacobian_lss
+          jacobian_loss_train += jacobian_lss.item()
       if args.smart:
           sm_loss = smart_loss(x_embed, logits,reshape_required=True, attn_masks=b_mask)
           loss += args.smart_lambda * sm_loss
+          smart_loss_train += sm_loss.item()
       accuracy += (preds == labels).sum().item()
       
 
@@ -209,16 +216,23 @@ def train(args, experiment_id=1):
     dev_acc, dev_f1, *_ = model_eval_paraphrase(para_dev_dataloader, model, device)
     ## Tensoboard computations
     perplexity = perplexity / num_batches
+    current_lr = optimizer.param_groups[0]['lr']
     writer.add_scalar("Train/Loss", train_loss, epoch)
     writer.add_scalar("Train/Accuracy", accuracy, epoch)
     writer.add_scalar("Train/Perplexity", perplexity, epoch)
     writer.add_scalar("Dev/Accuracy", dev_acc, epoch)
     writer.add_scalar("Dev/F1", dev_f1, epoch)
-
+    if args.jacobian:
+      writer.add_scalar("Train/Jacobian_Loss", jacobian_loss_train, epoch)
+    if args.smart:
+      writer.add_scalar("Train/SMART_Loss", smart_loss_train, epoch)
+    writer.add_scalar("Learning Rate", current_lr, epoch)
 
     if dev_acc > best_dev_acc:
       best_dev_acc = dev_acc
-      save_model(model, optimizer, args, args.filepath) #TODO: MODIFY THIS SAVE FILE PATH
+      save_model_to = save_model_dir + f'/paraphrase_{experiment_id}_{epoch}.pt'
+      save_model(model, optimizer, args, save_model_to)
+      keep_latest_epoch_checkpoint(args.filepath.replace('.pt', '/'), epoch)
 
     ## Applying early stopping
     if early_stopping.step(dev_acc):
@@ -376,13 +390,14 @@ def add_arguments(args):
 if __name__ == "__main__":
   experiment_id = generate_experiment_id()
   args = get_args()
-  os.makedirs('experiments/paraphrase', exist_ok=True)
-  model_path = f'paraphrase-{experiment_id}.pt'
+  os.makedirs('experiments/paraphrase/', exist_ok=True)
+  model_path = f'paraphrase/{experiment_id}.pt'
   args.filepath =  os.path.join('experiments', model_path)
   seed_everything(args.seed)  # Fix the seed for reproducibility.
   metrics = train(args, experiment_id)
   metrics = test(args, metrics)
-  store_txt_experiment_data(metrics, 'paraphrase')
+  store_txt_experiment_data(metrics, 'paraphrase')  
+  # keep_latest_epoch_checkpoint(args.filepath.replace('.pt', '/'), metrics['last_epoch'])
   print('Metrics have been stored in experiments/paraphrase_metrics.txt')
 
 

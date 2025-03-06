@@ -254,8 +254,6 @@ def train(args, experiment_id=1):
             
             loss.backward()
             optimizer.step()
-        
-
 
             train_loss += loss.item()
             num_batches += 1
@@ -266,8 +264,10 @@ def train(args, experiment_id=1):
         smart_train_loss = smart_train_loss / num_batches
         writer.add_scalar('Loss/train', train_loss, epoch)
         writer.add_scalar('Perplexity/train', perplexity, epoch)
-        writer.add_scalar('Jacobian/train', jacobian_train_loss, epoch)
-        writer.add_scalar('SMART/train', smart_train_loss, epoch)
+        if args.jacobian:
+            writer.add_scalar('Jacobian/train', jacobian_train_loss, epoch)
+        if args.smart:
+            writer.add_scalar('SMART/train', smart_train_loss, epoch)
         writer.add_scalar('Learning Rate', current_lr, epoch)
         writer.flush()
         print()
