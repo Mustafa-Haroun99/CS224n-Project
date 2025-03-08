@@ -108,7 +108,7 @@ class GPT2Model(GPTPreTrainedModel):
       return hidden_state(s) * E^T
     """
     ### YOUR CODE HERE
-    return torch.einsum('b t d, v d -> b t v', hidden_state, self.word_embedding.weight)
+    return torch.matmul(hidden_state, self.word_embedding.weight.T)
 
 
   @classmethod
