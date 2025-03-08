@@ -9,12 +9,12 @@ trains your SonnetGPT model and writes the required submission files.
 import os
 import argparse
 import random
-import torch
 
 import numpy as np
 import torch.nn.functional as F
-
+import torch
 from torch import nn
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from transformers import GPT2Tokenizer
@@ -214,7 +214,7 @@ def train(args, experiment_id=1):
 
     lr = args.lr
     optimizer = AdamW(model.parameters(), lr=lr, weight_decay=0.1)
-
+    scheduler = ReduceLROnPlateau(optimizer, patience=10, verbose=True)
     # Run for the specified number of epochs.
     last_epoch = 0
     for epoch in range(args.epochs):
@@ -282,6 +282,7 @@ def train(args, experiment_id=1):
 
         # TODO: consider a stopping condition to prevent overfitting on the small dataset of sonnets.
         early_stopping(train_loss, model)
+        scheduler.step(train_loss)
         if early_stopping.early_stop:
             print("Early stopping")
             break
@@ -331,6 +332,7 @@ def generate_submission_sonnets(args, experiment_id, last_epoch=None):
     model.load_state_dict(saved['model'])
     model = model.to(device)
     model.eval()
+   
 
     # Create the held-out dataset: these only have the first 3 lines. Your job is to fill in the rest!
     held_out_sonnet_dataset = SonnetsDataset(args.held_out_sonnet_path)
