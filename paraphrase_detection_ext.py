@@ -112,6 +112,7 @@ def train(args, experiment_id=1):
   """Train GPT-2 for paraphrase detection on the Quora dataset."""
   if args.use_gpu:
     if torch.cuda.is_available():
+        print('using gpu!')
         device = torch.device("cuda")
     elif torch.backends.mps.is_available():
         print('using mps!')
@@ -120,7 +121,6 @@ def train(args, experiment_id=1):
         device = torch.device("cpu")
   else:
       device = torch.device("cpu")
-      
   experiment_path = args.filepath.replace('.pt', '').replace('experiments/', 'runs/')
   writer = SummaryWriter(f'{experiment_path}_{experiment_id}')
   save_model_dir = args.filepath.replace('.pt', f'')
@@ -175,7 +175,7 @@ def train(args, experiment_id=1):
 
   lr = args.lr
   optimizer = AdamW(model.parameters(), lr=lr, weight_decay=0.)
-  scheduler = ReduceLROnPlateau(optimizer, patience=10, verbose=True)
+  scheduler = ReduceLROnPlateau(optimizer, patience=2, verbose=True)
   best_dev_acc = 0
 
 
@@ -304,7 +304,6 @@ def test(args, metrics=None):
     if torch.cuda.is_available():
         device = torch.device("cuda")
     elif torch.backends.mps.is_available():
-        print('using mps!')
         device = torch.device("mps")
     else:
         device = torch.device("cpu")
@@ -435,8 +434,3 @@ if __name__ == "__main__":
   store_txt_experiment_data(metrics, 'paraphrase')  
   # keep_latest_epoch_checkpoint(args.filepath.replace('.pt', '/'), metrics['last_epoch'])
   print('Metrics have been stored in experiments/paraphrase_metrics.txt')
-
-
-
-       
-      
