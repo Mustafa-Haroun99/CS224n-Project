@@ -25,6 +25,7 @@ from torch import nn
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from torch.utils.tensorboard import SummaryWriter
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 from datasets import (
   ParaphraseDetectionDataset,
@@ -109,7 +110,17 @@ def save_model(model, optimizer, args, filepath):
 
 def train(args, experiment_id=1):
   """Train GPT-2 for paraphrase detection on the Quora dataset."""
-  device = torch.device('cuda') if args.use_gpu and torch.cuda.is_available() else torch.device('cpu')
+  if args.use_gpu:
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+    elif torch.backends.mps.is_available():
+        print('using mps!')
+        device = torch.device("mps")
+    else:
+        device = torch.device("cpu")
+  else:
+      device = torch.device("cpu")
+      
   experiment_path = args.filepath.replace('.pt', '').replace('experiments/', 'runs/')
   writer = SummaryWriter(f'{experiment_path}_{experiment_id}')
   save_model_dir = args.filepath.replace('.pt', f'')
@@ -164,6 +175,7 @@ def train(args, experiment_id=1):
 
   lr = args.lr
   optimizer = AdamW(model.parameters(), lr=lr, weight_decay=0.)
+  scheduler = ReduceLROnPlateau(optimizer, patience=10, verbose=True)
   best_dev_acc = 0
 
 
@@ -249,6 +261,7 @@ def train(args, experiment_id=1):
       best_epoch = epoch
        
     early_stopping(dev_acc, model)
+    scheduler.step(train_loss)
     if early_stopping.early_stop:
         print("Early stopping")
         break
@@ -291,6 +304,7 @@ def test(args, metrics=None):
     if torch.cuda.is_available():
         device = torch.device("cuda")
     elif torch.backends.mps.is_available():
+        print('using mps!')
         device = torch.device("mps")
     else:
         device = torch.device("cpu")
