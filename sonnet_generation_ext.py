@@ -257,6 +257,7 @@ def train(args, experiment_id=1):
 
             train_loss += loss.item()
             num_batches += 1
+
         current_lr = optimizer.param_groups[0]['lr']
         train_loss = train_loss / num_batches
         perplexity = perplexity / num_batches
@@ -290,6 +291,8 @@ def train(args, experiment_id=1):
         save_model_to = save_model_dir + f'/sonnet_{experiment_id}_{epoch}.pt'
         save_model(model, optimizer, args, save_model_to)
         last_epoch = epoch
+        if epoch % 5 == 0:
+            keep_latest_epoch_checkpoint(args.filepath.replace('.pt', '/'), epoch)
         
     metrics= {
         'experiment_id': experiment_id,
@@ -363,11 +366,11 @@ def get_args():
     parser.add_argument("--sonnet_out", type=str, default="predictions/generated_sonnets.txt")
 
     parser.add_argument("--seed", type=int, default=11711)
-    parser.add_argument("-e","--epochs", type=int, default=10)
+    parser.add_argument("-e","--epochs", type=int, default=40)
     parser.add_argument("--use_gpu", action='store_true', default=True)
 
     # Generation parameters.
-    parser.add_argument("--temperature", type=float, help="softmax temperature.", default=1.2)
+    parser.add_argument("--temperature", type=float, help="softmax temperature.", default=0.8)
     parser.add_argument("--top_p", type=float, help="Cumulative probability distribution for nucleus sampling.",
                                             default=0.9)
 
@@ -395,12 +398,12 @@ def get_args():
     parser.add_argument("--noise_var_sm", type=float, default=1e-5)
     parser.add_argument("--smart_lambda", type=float, default=0.02)
     ### Early Stopping Patience
-    parser.add_argument("--patience", type=int, default=5)
+    parser.add_argument("--patience", type=int, default=20)
     parser.add_argument("--delta", type=float, default=1e-4)
     ## Dropout Parameter Experiments
     parser.add_argument("--change_dropout", action='store_true')
     parser.add_argument("--dropout", type=float, default=0.1)
-    parser.add_argument('--attn_dropout', type=float, default=0.1)
+    parser.add_argument('--attn_dropout', type=float, default=0.)
 
     args = parser.parse_args()
     return args
