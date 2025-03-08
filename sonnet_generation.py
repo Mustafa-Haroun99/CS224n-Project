@@ -229,7 +229,7 @@ def get_args():
 
   parser.add_argument("--seed", type=int, default=11711)
   parser.add_argument("--epochs", type=int, default=10)
-  parser.add_argument("--use_gpu", action='store_true')
+  parser.add_argument("--use_gpu", action='store_true', default=True)
 
   # Generation parameters.
   parser.add_argument("--temperature", type=float, help="softmax temperature.", default=1.2)

@@ -326,15 +326,16 @@ def test(args, metrics=None):
   test_para_y_pred, test_para_sent_ids = model_test_paraphrase(para_test_dataloader, model, device)
   store_predictions_path_dev = args.filepath.replace('.pt', args.para_dev_out.replace('predictions/', '/'))
   store_predictions_path_test = args.filepath.replace('.pt', args.para_test_out.replace('predictions/', '/'))
+  label_mapping = {0: 3919, 1: 8505}
   with open(store_predictions_path_dev, "w+") as f:
     f.write(f"id \t Predicted_Is_Paraphrase \n")
     for p, s in zip(dev_para_sent_ids, dev_para_y_pred):
-      f.write(f"{p}, {s} \n")
+      f.write(f"{p}, {label_mapping[s]} \n")
 
   with open(store_predictions_path_test, "w+") as f:
     f.write(f"id \t Predicted_Is_Paraphrase \n")
     for p, s in zip(test_para_sent_ids, test_para_y_pred):
-      f.write(f"{p}, {s} \n")
+      f.write(f"{p}, {label_mapping[s]} \n")
   if metrics is not None:
       metrics['dev_para_acc'] = dev_para_acc # TODO: ADD METRICS FOR THE  TEST SET
   return metrics
@@ -420,8 +421,3 @@ if __name__ == "__main__":
   store_txt_experiment_data(metrics, 'paraphrase')  
   # keep_latest_epoch_checkpoint(args.filepath.replace('.pt', '/'), metrics['last_epoch'])
   print('Metrics have been stored in experiments/paraphrase_metrics.txt')
-
-
-
-       
-      

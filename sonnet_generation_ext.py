@@ -335,7 +335,6 @@ def generate_submission_sonnets(args, experiment_id, last_epoch=None):
     model.load_state_dict(saved['model'])
     model = model.to(device)
     model.eval()
-   
 
     # Create the held-out dataset: these only have the first 3 lines. Your job is to fill in the rest!
     held_out_sonnet_dataset = SonnetsDataset(args.held_out_sonnet_path)
@@ -363,7 +362,7 @@ def get_args():
 
     parser.add_argument("--sonnet_path", type=str, default="data/sonnets.txt")
     parser.add_argument("--held_out_sonnet_path", type=str, default="data/sonnets_held_out.txt")
-    parser.add_argument("--sonnet_out", type=str, default="predictions/generated_sonnets_dev.txt")
+    parser.add_argument("--sonnet_out", type=str, default="predictions/generated_sonnets.txt")
 
     parser.add_argument("--seed", type=int, default=11711)
     parser.add_argument("-e","--epochs", type=int, default=40)
@@ -431,12 +430,22 @@ def add_arguments(args):
 if __name__ == "__main__":
     experiment_id = generate_experiment_id()
     args = get_args()
+    ### Fixing Paths for Dev ###
+    args.held_out_sonnet_path = 'data/sonnets_held_out_dev.txt'
+    args.sonnet_out = 'predictions/generated_sonnets_dev.txt'
+    ## Generating Experiment ID and Modifying Paths
     os.makedirs('experiments/sonnet/', exist_ok=True)
     model_path = f'sonnet/{experiment_id}.pt'
     args.filepath =  os.path.join('experiments', model_path)
-    seed_everything(args.seed)  # Fix the seed for reproducibility.
+    seed_everything(args.seed) 
+    ## Train Model
     metrics = train(args, experiment_id)
+    # Generate Dev Sonnets
     generate_submission_sonnets(args, experiment_id, last_epoch=metrics['last_epoch'])
     store_txt_experiment_data(metrics, 'sonnet')
     keep_latest_epoch_checkpoint(args.filepath.replace('.pt', '/'), metrics['last_epoch'])
+    ## Generate Test Sonnets and Store Metrics
+    args.held_out_sonnet_path = 'data/sonnets_held_out_test.txt'
+    args.sonnet_out = 'predictions/generated_sonnets_test.txt'
+    generate_submission_sonnets(args, experiment_id, last_epoch=metrics['last_epoch'])
     print('Metrics have been stored in experiments/sonnet_metrics.txt')

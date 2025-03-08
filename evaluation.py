@@ -43,7 +43,7 @@ def model_eval_paraphrase(dataloader, model, device, return_loss=False):
     logits = logits.cpu().numpy()
     preds = np.argmax(logits, axis=1).flatten()
 
-    y_true.extend(labels)
+    y_true.extend(labels_i.cpu().numpy())
     y_pred.extend(preds)
     sent_ids.extend(b_sent_ids)
   loss = loss / len(dataloader)
