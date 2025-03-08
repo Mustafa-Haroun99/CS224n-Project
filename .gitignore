@@ -111,3 +111,4 @@ t.ipynb_checkpoints
 /data/*
 runs/*
 experiments/*
+.ssh
