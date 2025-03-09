@@ -29,6 +29,7 @@ from models.gpt2 import GPT2Model
 # Local Imports
 from models.gpt2 import GPT2Model
 from extensions.lora_layer import replace_linear_with_lora, freeze_all_but_last
+from extensions.qlora_layer import replace_linear_with_qlora, unfreeze_last
 from extensions.spectrum import freeze_model, unfreeze_last
 from extensions.jacobian_reg import JacobianReg
 from extensions.pipeline_utils import store_txt_experiment_data, generate_experiment_id, keep_latest_epoch_checkpoint
@@ -190,6 +191,13 @@ def train(args, experiment_id=1):
         freeze_all_but_last(model)
         model = replace_linear_with_lora(model, args.rank, args.alpha)
         print(model)
+    
+    if args.q_lora:
+        model = replace_linear_with_qlora(model, args.q_rank, args.q_alpha)
+        unfreeze_last(model)
+        print(model)
+        for name, param in model.named_parameters():
+            print(f"Layer: {name} | Requires Grad: {param.requires_grad}")
 
     model = model.to(device)
     # Applying Spectrum
@@ -386,6 +394,10 @@ def get_args():
     parser.add_argument("--lora", action='store_true')
     parser.add_argument("--rank", type=int, default=16)
     parser.add_argument("--alpha", type=int, default=16)
+    ### QLoRA Parameters
+    parser.add_argument("--q_lora", action='store_true')
+    parser.add_argument("--q_rank", type=int, default=8)
+    parser.add_argument("--q_alpha", type=int, default=16)
     # Spectrum Parameters
     parser.add_argument("--spectrum", action='store_true')
     parser.add_argument("--top_percent", type=int, default=25)

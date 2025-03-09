@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import bitsandbytes as bnb  # QLoRA requires bitsandbytes for 4-bit quantization
+import math
 
 class QLoraLayer(nn.Module):
     def __init__(self, in_dim, out_dim, rank, alpha):
@@ -9,6 +10,7 @@ class QLoraLayer(nn.Module):
         self.B = nn.Parameter(torch.Tensor(out_dim, rank))
         self.alpha = alpha
         nn.init.xavier_uniform_(self.A)
+        nn.init.kaiming_uniform_(self.B, a=math.sqrt(5))
 
     def forward(self, x):
         return self.alpha * x @ self.A @ self.B.t()
@@ -39,8 +41,10 @@ def replace_linear_with_qlora(model, rank=8, alpha=16):
     Returns:
         torch.nn.Module: The modified model with QLoRA applied.
     """
+    last_layer_name, _ = list(model.named_modules())[-1]                  
+    
     for name, module in model.named_children():
-        if isinstance(module, nn.Linear):
+        if name != last_layer_name and isinstance(module, nn.Linear):
             setattr(model, name, QuantizedLinearWithLora(module.in_features, module.out_features, rank, alpha))
         else:
             replace_linear_with_qlora(module, rank, alpha)
@@ -66,6 +70,22 @@ def freeze_all_except_lora(model, verbose=False):
         for name, param in model.named_parameters():
             print(f"{name}: requires_grad = {param.requires_grad}")
 
+
+def unfreeze_last(model, verbose=True):
+    # Freeze all layers except the last layer in the model.
+    # model: the PyTorch model
+    last_layer_name, _ = list(model.named_modules())[-1]
+    for name, module in model.named_children():
+        if name == last_layer_name:
+            for param in module.parameters():
+                param.requires_grad = True
+        else:
+            unfreeze_last(module)
+    if verbose:
+        for name, param in model.named_parameters():
+            print(f"{name}: requires_grad = {param.requires_grad}")
+
+
 # Example usage
 if __name__ == "__main__":
     # Create a simple model
@@ -78,7 +98,6 @@ if __name__ == "__main__":
     )
     
     model = replace_linear_with_qlora(model, rank=8, alpha=16)
-    print(model)
 
     # Freeze all non-LoRA parameters
     freeze_all_except_lora(model, verbose=True)
