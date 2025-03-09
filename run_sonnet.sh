@@ -5,11 +5,32 @@ YELLOW="\e[33m"
 GREEN="\e[32m"
 RESET="\e[0m"
 
-epochs=35
+epochs=20
 echo "Debug: Running with epochs=$epochs"
 
 echo -e "${YELLOW}Running experiment 1: Standard Model${RESET}"
 python sonnet_generation_ext.py -e $epochs
+
+echo -e "${YELLOW}Running experiment 1: Standard Model${RESET}"
+python sonnet_generation_ext.py -e $epochs --temperature 0.8
+
+echo -e "${YELLOW}Running experiment 1: Standard Model${RESET}"
+python sonnet_generation_ext.py -e $epochs --temperature 1.0
+
+echo -e "${YELLOW}Running experiment 1: Standard Model${RESET}"
+python sonnet_generation_ext.py -e $epochs --lr "1e-3"
+
+echo -e "${YELLOW}Running experiment 1: Standard Model${RESET}"
+python sonnet_generation_ext.py -e $epochs --lr "1e-5"
+
+echo -e "${YELLOW}Running experiment 1: Standard Model${RESET}"
+python sonnet_generation_ext.py -e $epochs --weight_decay "1e-3"
+
+echo -e "${YELLOW}Running experiment 1: Standard Model${RESET}"
+python sonnet_generation_ext.py -e $epochs --weight_decay "1e-2"
+
+
+### Extension with Regularization techniques
 
 echo -e "${YELLOW}Running experiment 2: LoRA Fine-Tuning${RESET}"
 python sonnet_generation_ext.py -e $epochs --lora
@@ -27,19 +48,19 @@ echo -e "${YELLOW}Running experiment 6: Dropout 0.3${RESET}"
 python sonnet_generation_ext.py -e $epochs --change_dropout --dropout 0.3
 
 echo -e "${YELLOW}Running experiment 7: Smart Lambda 1e-4${RESET}"
-python sonnet_generation_ext.py -e $epochs --smart --smart_lambda "1e-4"
+python sonnet_generation_ext.py -e $epochs --smart --smart_lambda "1e-6"
 
 echo -e "${YELLOW}Running experiment 8: Smart Lambda 1e-3${RESET}"
-python sonnet_generation_ext.py -e $epochs --smart --smart_lambda "1e-3"
+python sonnet_generation_ext.py -e $epochs --smart --smart_lambda "1e-5"
 
 echo -e "${YELLOW}Running experiment 9: Smart Lambda 1e-2${RESET}"
-python sonnet_generation_ext.py -e $epochs --smart --smart_lambda "1e-2"
+python sonnet_generation_ext.py -e $epochs --smart --smart_lambda "1e-4"
 
 echo -e "${YELLOW}Running experiment 10: Jacobian Regularization Lambda 1e-4${RESET}"
-python sonnet_generation_ext.py -e $epochs --jacobian --jreg_lambda "1e-4"
+python sonnet_generation_ext.py -e $epochs --jacobian --jreg_lambda "1e-6"
 
-echo -e "${YELLOW}Running experiment 11: Jacobian Regularization Lambda 1e-3${RESET}"
-python sonnet_generation_ext.py -e $epochs --jacobian --jreg_lambda "1e-3"
+echo -e "${YELLOW}Running experiment 11: Jacobian Regularization Lambda 1e-5${RESET}"
+python sonnet_generation_ext.py -e $epochs --jacobian --jreg_lambda "1e-4"
 
 echo -e "${YELLOW}Running experiment 12: Jacobian Regularization Lambda 1e-2${RESET}"
 python sonnet_generation_ext.py -e $epochs --jacobian --jreg_lambda "1e-2"
@@ -62,14 +83,9 @@ python sonnet_generation_ext.py -e $epochs --lora --spectrum --top_percent 50
 echo -e "${YELLOW}Running experiment 18: LoRA + Spectrum - Top 75%${RESET}"
 python sonnet_generation_ext.py -e $epochs --lora --spectrum --top_percent 75
 
-echo -e "${YELLOW}Running experiment 19: QLoRA + Spectrum - Top 25%${RESET}"
-python sonnet_generation_ext.py -e $epochs --qlora --spectrum --top_percent 25
 
-echo -e "${YELLOW}Running experiment 20: QLoRA + Spectrum - Top 50%${RESET}"
-python sonnet_generation_ext.py -e $epochs --qlora --spectrum --top_percent 50
+0
 
-echo -e "${YELLOW}Running experiment 21: QLoRA + Spectrum - Top 75%${RESET}"
-python sonnet_generation_ext.py -e $epochs --qlora --spectrum --top_percent 75
 
 # Completion message
 echo -e "${GREEN}All experiments completed successfully! 🚀${RESET}"

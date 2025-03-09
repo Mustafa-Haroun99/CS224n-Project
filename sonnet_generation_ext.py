@@ -192,7 +192,7 @@ def train(args, experiment_id=1):
         model = replace_linear_with_lora(model, args.rank, args.alpha)
         print(model)
     
-    if args.q_lora:
+    if args.qlora:
         model = replace_linear_with_qlora(model, args.q_rank, args.q_alpha)
         unfreeze_last(model)
         print(model)
@@ -221,7 +221,7 @@ def train(args, experiment_id=1):
     
 
     lr = args.lr
-    optimizer = AdamW(model.parameters(), lr=lr, weight_decay=0.1)
+    optimizer = AdamW(model.parameters(), lr=lr, weight_decay=args.weight_decay)
     scheduler = ReduceLROnPlateau(optimizer, patience=10, verbose=True)
     # Run for the specified number of epochs.
     last_epoch = 0
@@ -314,7 +314,7 @@ def train(args, experiment_id=1):
         'lora': args.lora,
         'rank': args.rank,
         'alpha': args.alpha,    
-        'qlora': args.q_lora,
+        'qlora': args.qlora,
         'q_rank': args.q_rank,
         'q_alpha': args.q_alpha,
         'top_percent': args.top_percent,
@@ -325,7 +325,9 @@ def train(args, experiment_id=1):
         'perplexity_train': perplexity,
         'last_epoch': last_epoch, 
         'dropout': args.dropout,
-        'attn_dropout': args.attn_dropout
+        'attn_dropout': args.attn_dropout,
+        'temperature': args.temperature,
+        'weight_decay': args.weight_decay
         }
     return metrics
 
@@ -378,6 +380,7 @@ def get_args():
     parser.add_argument("--seed", type=int, default=11711)
     parser.add_argument("-e","--epochs", type=int, default=30)
     parser.add_argument("--use_gpu", action='store_true', default=True)
+    parser.add_argument("--weight_decay", type=float, default=0.01)
 
     # Generation parameters.
     parser.add_argument("--temperature", type=float, help="softmax temperature.", default=1.2)
@@ -398,7 +401,7 @@ def get_args():
     parser.add_argument("--rank", type=int, default=16)
     parser.add_argument("--alpha", type=int, default=16)
     ### QLoRA Parameters
-    parser.add_argument("--q_lora", action='store_true')
+    parser.add_argument("--qlora", action='store_true')
     parser.add_argument("--q_rank", type=int, default=8)
     parser.add_argument("--q_alpha", type=int, default=16)
     # Spectrum Parameters
