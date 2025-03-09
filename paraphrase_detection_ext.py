@@ -47,6 +47,8 @@ from optimizer import AdamW
 
 
 TQDM_DISABLE = False
+DEBUGGING = False
+
 
 # Fix the random seed.
 def seed_everything(seed=11711):
@@ -57,7 +59,6 @@ def seed_everything(seed=11711):
   torch.cuda.manual_seed_all(seed)
   torch.backends.cudnn.benchmark = False
   torch.backends.cudnn.deterministic = True
-DEBUGGING = False
 
 class ParaphraseGPT(nn.Module):
   """Your GPT-2 Model designed for paraphrase detection."""
@@ -92,6 +93,7 @@ class ParaphraseGPT(nn.Module):
       return logits, outputs['embeddings']
     else:
       return logits
+    
 
   def get_embeddings(self, input_ids):
       return self.gpt.embed(input_ids)
@@ -122,6 +124,9 @@ def train(args, experiment_id=1):
   """Train GPT-2 for paraphrase detection on the Quora dataset."""
   device = torch.device('cuda') if args.use_gpu and torch.cuda.is_available() else torch.device('cpu')
   experiment_path = args.filepath.replace('.pt', '').replace('experiments/', 'runs/')
+  if args.debug:
+      print("\033[91m############### Debugging mode  is ON#############\033[0m")
+      DEBUGGING = args.debug
   writer = SummaryWriter(f'{experiment_path}_{experiment_id}')
   save_model_dir = args.filepath.replace('.pt', f'')
   print(f"Saving model to {save_model_dir}")
@@ -152,6 +157,10 @@ def train(args, experiment_id=1):
       freeze_all_but_last(model)
       model = replace_linear_with_lora(model, args.rank, args.alpha)
       print(model)
+  if args.qlora:
+    model = replace_linear_with_qlora(model, args.q_rank, args.q_alpha)
+    unfreeze_last(model)
+    print(model)
 
   model = model.to(device)
   # Applying Spectrum
@@ -233,7 +242,7 @@ def train(args, experiment_id=1):
 
     train_loss = train_loss / num_batches
     accuracy = accuracy / len(para_train_data)
-    dev_acc, dev_f1, _, _ ,_, eval_loss= model_eval_paraphrase(para_dev_dataloader, model, device, return_loss=True)
+    dev_acc, dev_f1, _, _ ,_, eval_loss= model_eval_paraphrase(para_dev_dataloader, model, device, return_loss=True, debugging=args.debug)
     perplexity_eval = torch.exp(eval_loss).item()
     eval_loss = eval_loss.item()
 
@@ -330,8 +339,15 @@ def test(args, metrics=None):
       for name, param in model.named_parameters():
           print(f"Layer: {name} | Requires Grad: {param.requires_grad}")
       model.to(device)
-      
-  model.load_state_dict(saved['model'])
+      # Check if the model contains `bnb.nn.Linear4bit` before loading
+      for name, module in model.named_modules():
+          if isinstance(module, torch.nn.Linear):
+              print(f"Warning: {name} is torch.nn.Linear but expected Linear4bit!")
+  if args.qlora:
+        from extensions.pipeline_utils import load_qlora_state_dict
+        model = load_qlora_state_dict(model, saved['model'])
+  else:
+    model.load_state_dict(saved['model'])
   model = model.to(device)
   model.eval()
   print(f"Loaded model to test from {args.filepath}")
@@ -347,9 +363,9 @@ def test(args, metrics=None):
   para_test_dataloader = DataLoader(para_test_data, shuffle=True, batch_size=args.batch_size,
                                     collate_fn=para_test_data.collate_fn)
 
-  dev_para_acc, _, dev_para_y_pred, _, dev_para_sent_ids = model_eval_paraphrase(para_dev_dataloader, model, device)
+  dev_para_acc, _, dev_para_y_pred, _, dev_para_sent_ids = model_eval_paraphrase(para_dev_dataloader, model, device, debugging=args.debug)
   print(f"dev paraphrase acc :: {dev_para_acc :.3f}")
-  test_para_y_pred, test_para_sent_ids = model_test_paraphrase(para_test_dataloader, model, device)
+  test_para_y_pred, test_para_sent_ids = model_test_paraphrase(para_test_dataloader, model, device, debugging=args.debug)
   store_predictions_path_dev = args.filepath.replace('.pt', args.para_dev_out.replace('predictions/', '/'))
   store_predictions_path_test = args.filepath.replace('.pt', args.para_test_out.replace('predictions/', '/'))
   label_mapping = {0: 3919, 1: 8505}
@@ -415,6 +431,7 @@ def get_args():
   parser.add_argument("--change_dropout", action='store_true')
   parser.add_argument("--dropout", type=float, default=0.1)
   parser.add_argument('--attn_dropout', type=float, default=0.1)
+  parser.add_argument('--debug', action='store_true')
 
   args = parser.parse_args()
   return args

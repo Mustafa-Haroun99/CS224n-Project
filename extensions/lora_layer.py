@@ -14,7 +14,7 @@ class LoraLayer(torch.nn.Module):
         # Compute the output of the LoraLayer.
         # x: [batch_size, in_dim]
         # output: [batch_size, out_dim]
-        x =self.alpha * (x @ self.A @ self.B)
+        x =self.alpha * (x @ self.A) @ self.B
         return x
 
 class LinearWithLora(torch.nn.Module):

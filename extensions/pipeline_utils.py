@@ -3,6 +3,8 @@ import numpy as np
 from tensorboard.backend.event_processing import event_accumulator
 import glob
 import os
+import torch
+import bitsandbytes as bnb
 
 def generate_experiment_id():
     return datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -116,3 +118,88 @@ def print_requires_grad(model, parent_name=""):
 
         # Recursively check submodules
         print_requires_grad(module, full_name)
+
+def load_qlora_state_dict(model, state_dict):
+    """
+    Custom state_dict loader for QLoRA models that can handle both:
+    1. Loading a standard model into a QLoRA-modified model
+    2. Loading a QLoRA model into a QLoRA-modified model
+    
+    Args:
+        model: The target model (with QLoRA applied)
+        state_dict: The state dictionary to load
+    
+    Returns:
+        The model with loaded weights
+    """
+    # Create a new state dict with only keys that exist in the model
+    model_state_dict = model.state_dict()
+    compatible_state_dict = {}
+    
+    # Filter quantization-specific parameters
+    qlora_specific_keywords = [
+        '.absmax', '.quant_map', '.nested_absmax', 
+        '.nested_quant_map', '.quant_state', 'bitsandbytes'
+    ]
+    
+    # Process each key in the loaded state dict
+    for key, value in state_dict.items():
+        # Check if this is a QLoRA-specific parameter
+        is_qlora_param = any(keyword in key for keyword in qlora_specific_keywords)
+        
+        # If it's a standard parameter and exists in the model, keep it
+        if not is_qlora_param and key in model_state_dict:
+            compatible_state_dict[key] = value
+        
+        # If it's a QLoRA parameter and the corresponding key exists in the model, keep it
+        elif is_qlora_param and key in model_state_dict:
+            compatible_state_dict[key] = value
+    
+    # For debugging, print how many parameters were loaded vs. available
+    print(f"Loaded {len(compatible_state_dict)} parameters out of {len(model_state_dict)} available in the model")
+    
+    # Load the filtered state dict
+    model.load_state_dict(compatible_state_dict, strict=False)
+    return model
+
+
+# Alternative approach: convert model back to FP32 before loading
+def dequantize_model_for_loading(model):
+    """
+    Convert a QLoRA model back to standard torch.nn.Linear layers
+    to make it compatible with standard checkpoints.
+    
+    Args:
+        model: The QLoRA model to convert
+        
+    Returns:
+        The dequantized model
+    """
+    
+    
+    for name, module in list(model.named_children()):
+        if isinstance(module, bnb.nn.Linear4bit):
+            # Create a new standard linear layer
+            standard_linear = torch.nn.Linear(
+                module.in_features, 
+                module.out_features,
+                bias=module.bias is not None
+            )
+            
+            # Copy weights if possible (might need special handling)
+            if hasattr(module, 'weight'):
+                # This might need dequantization logic depending on bitsandbytes version
+                standard_linear.weight.data = module.weight.data.float()
+            
+            # Copy bias if it exists
+            if module.bias is not None:
+                standard_linear.bias.data = module.bias.data
+                
+            # Replace the module
+            setattr(model, name, standard_linear)
+        
+        # Recursively process child modules
+        elif len(list(module.children())) > 0:
+            dequantize_model_for_loading(module)
+            
+    return model
