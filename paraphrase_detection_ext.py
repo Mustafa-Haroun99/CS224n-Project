@@ -92,6 +92,12 @@ class ParaphraseGPT(nn.Module):
       return logits, outputs['embeddings']
     else:
       return logits
+    
+  def forward_with_embeddings(self, embedding_input, attention_mask):
+      outputs = self.gpt.run_transformer(embedding_input, attention_mask=attention_mask)
+      last_hidden_state = outputs['last_hidden_state']
+      logits = self.paraphrase_detection_head(last_hidden_state[:, -1, :]) 
+      return logits
 
 
 def save_model(model, optimizer, args, filepath):
@@ -260,11 +266,11 @@ def train(args, experiment_id=1):
       save_model(model, optimizer, args, save_model_to)
       best_epoch = epoch
        
-    early_stopping(dev_acc, model)
+    # early_stopping(dev_acc, model)
     scheduler.step(train_loss)
-    if early_stopping.early_stop:
-        print("Early stopping")
-        break
+    # if early_stopping.early_stop:
+    #     print("Early stopping")
+    #     break
         
 
     print(f"Epoch {epoch}: train loss :: {train_loss :.3f}, dev acc :: {dev_acc :.3f}")
