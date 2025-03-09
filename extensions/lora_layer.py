@@ -14,7 +14,7 @@ class LoraLayer(torch.nn.Module):
         # Compute the output of the LoraLayer.
         # x: [batch_size, in_dim]
         # output: [batch_size, out_dim]
-        x =self.alpha * (x @ self.A @ self.B)
+        x =self.alpha * (x @ self.A) @ self.B
         return x
 
 class LinearWithLora(torch.nn.Module):
@@ -32,18 +32,21 @@ class LinearWithLora(torch.nn.Module):
         return ln + ll
     
 def replace_linear_with_lora(model, rank, alpha):
-    # Replace all linear layers in the model with LinearWithLora layers.
-    # model: the PyTorch model
-    # rank: the rank of the LoraLayer
-    # alpha: the alpha parameter of the LoraLayer
-    last_layer_name, _ = list(model.named_modules())[-1]
-    for name, module in model.named_children():
-        if isinstance(module, torch.nn.Linear) and name not in last_layer_name:
-            setattr(model, name, LinearWithLora(module.in_features, module.out_features, rank, alpha))
-
-        else:
+    """Replace linear layers with LoRA-adapted versions."""
+    for name, module in list(model.named_children()):
+        if isinstance(module, torch.nn.Linear):
+            # Replace this linear module with a LoRA version
+            new_module = LinearWithLora(
+                in_dim=module.in_features, 
+                out_dim=module.out_features,
+                rank=rank, 
+                alpha=alpha
+            )
+            setattr(model, name, new_module)
+        elif len(list(module.children())) > 0:
+            # Recursive call for modules with children
             replace_linear_with_lora(module, rank, alpha)
-
+    
     return model
 
 def freeze_all_but_last(model, verbose=False):

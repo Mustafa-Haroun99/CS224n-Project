@@ -37,7 +37,8 @@ from models.gpt2 import GPT2Model
 from extensions.lora_layer import replace_linear_with_lora, freeze_all_but_last
 from extensions.spectrum import freeze_model, unfreeze_last
 from extensions.jacobian_reg import JacobianReg
-from extensions.pipeline_utils import store_txt_experiment_data,    generate_experiment_id, keep_latest_epoch_checkpoint
+from extensions.pipeline_utils import store_txt_experiment_data,    generate_experiment_id, keep_latest_epoch_checkpoint, print_requires_grad
+from extensions.qlora_layer import replace_linear_with_qlora
 from extensions.smart_pytorch import SMARTLoss
 from extensions.smart_loss import kl_loss, sym_kl_loss
 from extensions.dropout_modifier import modify_model_dropout
@@ -46,6 +47,8 @@ from optimizer import AdamW
 
 
 TQDM_DISABLE = False
+DEBUGGING = False
+
 
 # Fix the random seed.
 def seed_everything(seed=11711):
@@ -56,7 +59,6 @@ def seed_everything(seed=11711):
   torch.cuda.manual_seed_all(seed)
   torch.backends.cudnn.benchmark = False
   torch.backends.cudnn.deterministic = True
-
 
 class ParaphraseGPT(nn.Module):
   """Your GPT-2 Model designed for paraphrase detection."""
@@ -91,7 +93,18 @@ class ParaphraseGPT(nn.Module):
       return logits, outputs['embeddings']
     else:
       return logits
+    
 
+  def get_embeddings(self, input_ids):
+      return self.gpt.embed(input_ids)
+
+  def forward_with_embeddings(self, embedding_output, attention_mask):
+    outputs = self.gpt.run_transformer(embedding_output, attention_mask=attention_mask)
+    last_hidden_state = outputs['last_hidden_state']
+    logits = self.paraphrase_detection_head(last_hidden_state[:, -1, :])  
+    return logits 
+    ### YOUR CODE HERE
+    
 
 def save_model(model, optimizer, args, filepath):
   save_info = {
@@ -111,6 +124,9 @@ def train(args, experiment_id=1):
   """Train GPT-2 for paraphrase detection on the Quora dataset."""
   device = torch.device('cuda') if args.use_gpu and torch.cuda.is_available() else torch.device('cpu')
   experiment_path = args.filepath.replace('.pt', '').replace('experiments/', 'runs/')
+  if args.debug:
+      print("\033[91m############### Debugging mode  is ON#############\033[0m")
+      DEBUGGING = args.debug
   writer = SummaryWriter(f'{experiment_path}_{experiment_id}')
   save_model_dir = args.filepath.replace('.pt', f'')
   print(f"Saving model to {save_model_dir}")
@@ -141,6 +157,10 @@ def train(args, experiment_id=1):
       freeze_all_but_last(model)
       model = replace_linear_with_lora(model, args.rank, args.alpha)
       print(model)
+  if args.qlora:
+    model = replace_linear_with_qlora(model, args.q_rank, args.q_alpha)
+    unfreeze_last(model)
+    print(model)
 
   model = model.to(device)
   # Applying Spectrum
@@ -166,8 +186,10 @@ def train(args, experiment_id=1):
   optimizer = AdamW(model.parameters(), lr=lr, weight_decay=0.)
   best_dev_acc = 0
 
-
+  print_requires_grad(model)
+  # import sys; sys.exit()  
   # Run for the specified number of epochs.
+  print(f'This is the device {device}')
   for epoch in range(args.epochs):
     model.train()
     train_loss = 0
@@ -178,9 +200,10 @@ def train(args, experiment_id=1):
     jacobian_loss_train = 0
     I = 0
     for batch in tqdm(para_train_dataloader, desc=f'train-{epoch}', disable=TQDM_DISABLE):
-      # if I==10: # FOR TESTING
-      #    break
-      # I+=1
+      if DEBUGGING:
+        if I==10: # FOR TESTING
+          break
+        I+=1
       # Get the input and move it to the gpu (I do not recommend training this model on CPU).
       b_ids, b_mask, labels = batch['token_ids'], batch['attention_mask'], batch['labels'].flatten()
       b_ids = b_ids.to(device)
@@ -190,7 +213,11 @@ def train(args, experiment_id=1):
       # Compute the loss, gradients, and update the model's parameters.
       optimizer.zero_grad()
       if args.jacobian or args.smart:
-         logits, x_embed = model(b_ids, b_mask, return_embeddings=True)
+          x_embed = model.get_embeddings(b_ids)
+          enforce_grad = not x_embed.requires_grad
+          if enforce_grad:
+             x_embed.requires_grad_(True)
+          logits = model.forward_with_embeddings(x_embed, b_mask)
       else:
         logits = model(b_ids, b_mask)
       preds = torch.argmax(logits, dim=1)
@@ -203,12 +230,10 @@ def train(args, experiment_id=1):
           loss += args.jreg_lambda * jacobian_lss
           jacobian_loss_train += jacobian_lss.item()
       if args.smart:
-          sm_loss = smart_loss(x_embed, logits,reshape_required=True, attn_masks=b_mask)
+          sm_loss = smart_loss(x_embed, logits, reshape_required=False, attn_masks=b_mask)
           loss += args.smart_lambda * sm_loss
           smart_loss_train += sm_loss.item()
       accuracy += (preds == labels).sum().item()
-      
-
       loss.backward()
       optimizer.step()
 
@@ -217,7 +242,7 @@ def train(args, experiment_id=1):
 
     train_loss = train_loss / num_batches
     accuracy = accuracy / len(para_train_data)
-    dev_acc, dev_f1, _, _ ,_, eval_loss= model_eval_paraphrase(para_dev_dataloader, model, device, return_loss=True)
+    dev_acc, dev_f1, _, _ ,_, eval_loss= model_eval_paraphrase(para_dev_dataloader, model, device, return_loss=True, debugging=args.debug)
     perplexity_eval = torch.exp(eval_loss).item()
     eval_loss = eval_loss.item()
 
@@ -270,7 +295,10 @@ def train(args, experiment_id=1):
         'n_proj': args.n_proj,
         'lora': args.lora,
         'rank': args.rank,
-        'alpha': args.alpha,    
+        'alpha': args.alpha,
+        'qlora': args.qlora,
+        'q_rank': args.q_rank,
+        'q_alpha': args.q_alpha,
         'top_percent': args.top_percent,
         'spectrum': args.spectrum,
         'smart': args.smart,
@@ -304,8 +332,22 @@ def test(args, metrics=None):
   if args.lora:
         freeze_all_but_last(model)
         model = replace_linear_with_lora(model, args.rank, args.alpha)
-
-  model.load_state_dict(saved['model'])
+  if args.qlora:
+      model = replace_linear_with_qlora(model, args.q_rank, args.q_alpha)
+      unfreeze_last(model)
+      print(model)
+      for name, param in model.named_parameters():
+          print(f"Layer: {name} | Requires Grad: {param.requires_grad}")
+      model.to(device)
+      # Check if the model contains `bnb.nn.Linear4bit` before loading
+      for name, module in model.named_modules():
+          if isinstance(module, torch.nn.Linear):
+              print(f"Warning: {name} is torch.nn.Linear but expected Linear4bit!")
+  if args.qlora:
+        from extensions.pipeline_utils import load_qlora_state_dict
+        model = load_qlora_state_dict(model, saved['model'])
+  else:
+    model.load_state_dict(saved['model'])
   model = model.to(device)
   model.eval()
   print(f"Loaded model to test from {args.filepath}")
@@ -321,9 +363,9 @@ def test(args, metrics=None):
   para_test_dataloader = DataLoader(para_test_data, shuffle=True, batch_size=args.batch_size,
                                     collate_fn=para_test_data.collate_fn)
 
-  dev_para_acc, _, dev_para_y_pred, _, dev_para_sent_ids = model_eval_paraphrase(para_dev_dataloader, model, device)
+  dev_para_acc, _, dev_para_y_pred, _, dev_para_sent_ids = model_eval_paraphrase(para_dev_dataloader, model, device, debugging=args.debug)
   print(f"dev paraphrase acc :: {dev_para_acc :.3f}")
-  test_para_y_pred, test_para_sent_ids = model_test_paraphrase(para_test_dataloader, model, device)
+  test_para_y_pred, test_para_sent_ids = model_test_paraphrase(para_test_dataloader, model, device, debugging=args.debug)
   store_predictions_path_dev = args.filepath.replace('.pt', args.para_dev_out.replace('predictions/', '/'))
   store_predictions_path_test = args.filepath.replace('.pt', args.para_test_out.replace('predictions/', '/'))
   label_mapping = {0: 3919, 1: 8505}
@@ -352,7 +394,7 @@ def get_args():
   parser.add_argument("--para_test_out", type=str, default="predictions/para-test-output.csv")
   parser.add_argument("--seed", type=int, default=11711)
   parser.add_argument("-e", "--epochs", type=int, default=10)
-  parser.add_argument("--use_gpu", action='store_true')
+  parser.add_argument("--use_gpu", action='store_true', default=True)
 
   parser.add_argument("--batch_size", help='sst: 64, cfimdb: 8 can fit a 12GB GPU', type=int, default=8)
   parser.add_argument("--lr", type=float, help="learning rate", default=1e-5)
@@ -368,6 +410,10 @@ def get_args():
   parser.add_argument("--lora", action='store_true')
   parser.add_argument("--rank", type=int, default=16)
   parser.add_argument("--alpha", type=int, default=16)
+  ### QLoRA Parameters
+  parser.add_argument("--qlora", action='store_true')
+  parser.add_argument("--q_rank", type=int, default=8)
+  parser.add_argument("--q_alpha", type=int, default=16)
   # Spectrum Parameters
   parser.add_argument("--spectrum", action='store_true')
   parser.add_argument("--top_percent", type=int, default=25)
@@ -385,6 +431,7 @@ def get_args():
   parser.add_argument("--change_dropout", action='store_true')
   parser.add_argument("--dropout", type=float, default=0.1)
   parser.add_argument('--attn_dropout', type=float, default=0.1)
+  parser.add_argument('--debug', action='store_true')
 
   args = parser.parse_args()
   return args
