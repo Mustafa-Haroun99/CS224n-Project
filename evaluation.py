@@ -18,7 +18,7 @@ from datasets import (
 )
 
 TQDM_DISABLE = False
-
+DEBUGGING = False
 
 @torch.no_grad()
 def model_eval_paraphrase(dataloader, model, device, return_loss=False):
@@ -29,9 +29,10 @@ def model_eval_paraphrase(dataloader, model, device, return_loss=False):
   for step, batch in enumerate(tqdm(dataloader, desc=f'eval', disable=TQDM_DISABLE)):
     b_ids, b_mask, b_sent_ids, labels = batch['token_ids'], batch['attention_mask'], batch['sent_ids'], batch[
       'labels'].flatten()
-    # if I == 10: # FOR TESTING
-    #   break
-    I +=1
+    if DEBUGGING:
+      if I == 10: # FOR TESTING
+        break
+      I +=1
     b_ids = b_ids.to(device)
     b_mask = b_mask.to(device)
     logits = model(b_ids, b_mask)

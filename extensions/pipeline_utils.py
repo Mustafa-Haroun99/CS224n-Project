@@ -94,3 +94,25 @@ def keep_latest_epoch_checkpoint(file_path, latest_epoch):
             print(f"Deleted: {file}")
     
     print(f"Kept latest checkpoint: {file_path}/sonnet_{latest_epoch}.pt")
+
+def print_requires_grad(model, parent_name=""):
+    """
+    Recursively prints whether each layer in the model has requires_grad=True.
+    
+    Args:
+        model (torch.nn.Module): The PyTorch model.
+        parent_name (str): Parent layer name (used for recursion).
+    """
+    for name, module in model.named_children():
+        full_name = f"{parent_name}.{name}" if parent_name else name  # Construct full layer name
+        
+        # If the module has parameters, print whether requires_grad is True/False
+        if any(p.requires_grad for p in module.parameters(recurse=False)):  
+            status = "Trainable ✅"
+        else:
+            status = "Frozen ❌"
+        
+        print(f"Layer: {full_name} | {status}")
+
+        # Recursively check submodules
+        print_requires_grad(module, full_name)

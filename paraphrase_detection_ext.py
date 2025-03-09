@@ -37,7 +37,7 @@ from models.gpt2 import GPT2Model
 from extensions.lora_layer import replace_linear_with_lora, freeze_all_but_last
 from extensions.spectrum import freeze_model, unfreeze_last
 from extensions.jacobian_reg import JacobianReg
-from extensions.pipeline_utils import store_txt_experiment_data,    generate_experiment_id, keep_latest_epoch_checkpoint
+from extensions.pipeline_utils import store_txt_experiment_data,    generate_experiment_id, keep_latest_epoch_checkpoint, print_requires_grad
 from extensions.qlora_layer import replace_linear_with_qlora
 from extensions.smart_pytorch import SMARTLoss
 from extensions.smart_loss import kl_loss, sym_kl_loss
@@ -57,7 +57,7 @@ def seed_everything(seed=11711):
   torch.cuda.manual_seed_all(seed)
   torch.backends.cudnn.benchmark = False
   torch.backends.cudnn.deterministic = True
-
+DEBUGGING = False
 
 class ParaphraseGPT(nn.Module):
   """Your GPT-2 Model designed for paraphrase detection."""
@@ -93,12 +93,16 @@ class ParaphraseGPT(nn.Module):
     else:
       return logits
 
-  def forward_with_embeddings(self, embedding_input, attention_mask):
+  def get_embeddings(self, input_ids):
+      return self.gpt.embed(input_ids)
+
+  def forward_with_embeddings(self, embedding_output, attention_mask):
+    outputs = self.gpt.run_transformer(embedding_output, attention_mask=attention_mask)
+    last_hidden_state = outputs['last_hidden_state']
+    logits = self.paraphrase_detection_head(last_hidden_state[:, -1, :])  
+    return logits 
     ### YOUR CODE HERE
-    outputs = self.gpt.run_transformer(embedding_input, attention_mask=attention_mask)
-    # return logits
-    output = self.gpt.hidden_state_to_token(outputs['last_hidden_state'])
-    return output
+    
 
 def save_model(model, optimizer, args, filepath):
   save_info = {
@@ -173,8 +177,10 @@ def train(args, experiment_id=1):
   optimizer = AdamW(model.parameters(), lr=lr, weight_decay=0.)
   best_dev_acc = 0
 
-
+  print_requires_grad(model)
+  # import sys; sys.exit()  
   # Run for the specified number of epochs.
+  print(f'This is the device {device}')
   for epoch in range(args.epochs):
     model.train()
     train_loss = 0
@@ -185,9 +191,10 @@ def train(args, experiment_id=1):
     jacobian_loss_train = 0
     I = 0
     for batch in tqdm(para_train_dataloader, desc=f'train-{epoch}', disable=TQDM_DISABLE):
-      # if I==10: # FOR TESTING
-      #    break
-      # I+=1
+      if DEBUGGING:
+        if I==10: # FOR TESTING
+          break
+        I+=1
       # Get the input and move it to the gpu (I do not recommend training this model on CPU).
       b_ids, b_mask, labels = batch['token_ids'], batch['attention_mask'], batch['labels'].flatten()
       b_ids = b_ids.to(device)
@@ -197,7 +204,11 @@ def train(args, experiment_id=1):
       # Compute the loss, gradients, and update the model's parameters.
       optimizer.zero_grad()
       if args.jacobian or args.smart:
-         logits, x_embed = model(b_ids, b_mask, return_embeddings=True)
+          x_embed = model.get_embeddings(b_ids)
+          enforce_grad = not x_embed.requires_grad
+          if enforce_grad:
+             x_embed.requires_grad_(True)
+          logits = model.forward_with_embeddings(x_embed, b_mask)
       else:
         logits = model(b_ids, b_mask)
       preds = torch.argmax(logits, dim=1)
@@ -210,12 +221,10 @@ def train(args, experiment_id=1):
           loss += args.jreg_lambda * jacobian_lss
           jacobian_loss_train += jacobian_lss.item()
       if args.smart:
-          sm_loss = smart_loss(x_embed, logits,reshape_required=False, attn_masks=b_mask)
+          sm_loss = smart_loss(x_embed, logits, reshape_required=False, attn_masks=b_mask)
           loss += args.smart_lambda * sm_loss
           smart_loss_train += sm_loss.item()
       accuracy += (preds == labels).sum().item()
-      
-
       loss.backward()
       optimizer.step()
 
@@ -321,6 +330,7 @@ def test(args, metrics=None):
       for name, param in model.named_parameters():
           print(f"Layer: {name} | Requires Grad: {param.requires_grad}")
       model.to(device)
+      
   model.load_state_dict(saved['model'])
   model = model.to(device)
   model.eval()
@@ -368,7 +378,7 @@ def get_args():
   parser.add_argument("--para_test_out", type=str, default="predictions/para-test-output.csv")
   parser.add_argument("--seed", type=int, default=11711)
   parser.add_argument("-e", "--epochs", type=int, default=10)
-  parser.add_argument("--use_gpu", action='store_true')
+  parser.add_argument("--use_gpu", action='store_true', default=True)
 
   parser.add_argument("--batch_size", help='sst: 64, cfimdb: 8 can fit a 12GB GPU', type=int, default=8)
   parser.add_argument("--lr", type=float, help="learning rate", default=1e-5)
