@@ -221,7 +221,7 @@ def train(args, experiment_id=1):
           loss += args.jreg_lambda * jacobian_lss
           jacobian_loss_train += jacobian_lss.item()
       if args.smart:
-          sm_loss = smart_loss(x_embed, logits,reshape_required=True, attn_masks=b_mask)
+          sm_loss = smart_loss(x_embed, logits,reshape_required=False, attn_masks=b_mask)
           loss += args.smart_lambda * sm_loss
           smart_loss_train += sm_loss.item()
       accuracy += (preds == labels).sum().item()
