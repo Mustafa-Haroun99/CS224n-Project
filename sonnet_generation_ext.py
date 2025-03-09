@@ -314,6 +314,9 @@ def train(args, experiment_id=1):
         'lora': args.lora,
         'rank': args.rank,
         'alpha': args.alpha,    
+        'qlora': args.q_lora,
+        'q_rank': args.q_rank,
+        'q_alpha': args.q_alpha,
         'top_percent': args.top_percent,
         'spectrum': args.spectrum,
         'smart': args.smart,
@@ -373,11 +376,11 @@ def get_args():
     parser.add_argument("--sonnet_out", type=str, default="predictions/generated_sonnets.txt")
 
     parser.add_argument("--seed", type=int, default=11711)
-    parser.add_argument("-e","--epochs", type=int, default=40)
+    parser.add_argument("-e","--epochs", type=int, default=30)
     parser.add_argument("--use_gpu", action='store_true', default=True)
 
     # Generation parameters.
-    parser.add_argument("--temperature", type=float, help="softmax temperature.", default=0.8)
+    parser.add_argument("--temperature", type=float, help="softmax temperature.", default=1.2)
     parser.add_argument("--top_p", type=float, help="Cumulative probability distribution for nucleus sampling.",
                                             default=0.9)
 
@@ -407,7 +410,7 @@ def get_args():
     parser.add_argument("--step_size_sm", type=float, default=1e-3)
     parser.add_argument("--epsilon_sm", type=float, default=1e-6)
     parser.add_argument("--noise_var_sm", type=float, default=1e-5)
-    parser.add_argument("--smart_lambda", type=float, default=0.02)
+    parser.add_argument("--smart_lambda", type=float, default=1e-4)
     ### Early Stopping Patience
     parser.add_argument("--patience", type=int, default=20)
     parser.add_argument("--delta", type=float, default=1e-4)
@@ -457,7 +460,7 @@ if __name__ == "__main__":
     store_txt_experiment_data(metrics, 'sonnet')
     keep_latest_epoch_checkpoint(args.filepath.replace('.pt', '/'), metrics['last_epoch'])
     ## Generate Test Sonnets and Store Metrics
-    args.held_out_sonnet_path = 'data/sonnets_held_out_test.txt'
-    args.sonnet_out = 'predictions/generated_sonnets_test.txt'
+    args.held_out_sonnet_path = "data/sonnets_held_out.txt"
+    args.sonnet_out = "predictions/generated_sonnets.txt"
     generate_submission_sonnets(args, experiment_id, last_epoch=metrics['last_epoch'])
     print('Metrics have been stored in experiments/sonnet_metrics.txt')

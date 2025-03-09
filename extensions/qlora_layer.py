@@ -85,19 +85,3 @@ def unfreeze_last(model, verbose=True):
         for name, param in model.named_parameters():
             print(f"{name}: requires_grad = {param.requires_grad}")
 
-
-# Example usage
-if __name__ == "__main__":
-    # Create a simple model
-    model = torch.nn.Sequential(
-        torch.nn.Linear(768, 512),
-        torch.nn.ReLU(),
-        torch.nn.Linear(512, 256),
-        torch.nn.ReLU(),
-        torch.nn.Linear(256, 10)
-    )
-    
-    model = replace_linear_with_qlora(model, rank=8, alpha=16)
-
-    # Freeze all non-LoRA parameters
-    freeze_all_except_lora(model, verbose=True)
