@@ -37,6 +37,7 @@ from extensions.smart_pytorch import SMARTLoss
 from extensions.smart_loss import kl_loss,sym_kl_loss
 from extensions.early_stopper import EarlyStopping
 from extensions.dropout_modifier import modify_model_dropout
+from extensions.pipeline_utils import load_qlora_state_dict
 
 from optimizer import AdamW
 
@@ -363,22 +364,10 @@ def generate_submission_sonnets(args, experiment_id, last_epoch=None, debug=Fals
         model = replace_linear_with_lora(model, args.rank, args.alpha)
 
     if args.qlora:
-      model = replace_linear_with_qlora(model, args.q_rank, args.q_alpha)
-      unfreeze_last(model)
-      print(model)
-      for name, param in model.named_parameters():
-          print(f"Layer: {name} | Requires Grad: {param.requires_grad}")
-      model.to(device)
-      # Check if the model contains `bnb.nn.Linear4bit` before loading
-      for name, module in model.named_modules():
-          if isinstance(module, torch.nn.Linear):
-              print(f"Warning: {name} is torch.nn.Linear but expected Linear4bit!")
-    
-    if args.qlora:
-            from extensions.pipeline_utils import load_qlora_state_dict
-            model = load_qlora_state_dict(model, saved['model'])
-
-    model.load_state_dict(saved['model'])
+        
+        model = load_qlora_state_dict(model, saved['model'])
+    else:
+        model.load_state_dict(saved['model'])
     model = model.to(device)
     model.eval()
 
