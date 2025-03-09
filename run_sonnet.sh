@@ -83,14 +83,46 @@ python sonnet_generation_ext.py -e $epochs --spectrum --top_percent 50 --lr "2e-
 echo -e "${YELLOW}Running experiment 14: Spectrum Analysis - Top 75%${RESET}"
 python sonnet_generation_ext.py -e $epochs --spectrum --top_percent 75 --lr "2e-4"
 
-echo -e "${YELLOW}Running experiment 15: LoRA + Spectrum - Top 25%${RESET}"
-python sonnet_generation_ext.py -e $epochs --lora --spectrum --top_percent 25  --lr "2e-4"
+### Extemsion of regularization with Jacobian and Smart
+echo -e "${YELLOW}Running experiment 15: Jacobian + Spectrum - Top 25%${RESET}"
+python sonnet_generation_ext.py -e $epochs --jacobian --spectrum --top_percent 25  --lr "2e-4"
 
-echo -e "${YELLOW}Running experiment 16: LoRA + Spectrum - Top 50%${RESET}"
-python sonnet_generation_ext.py -e $epochs --lora --spectrum --top_percent 50 --lr "2e-4"
+echo -e "${YELLOW}Running experiment 16: Jacobian + Spectrum - Top 50%${RESET}"
+python sonnet_generation_ext.py -e $epochs --jacobian --spectrum --top_percent 50 --lr "2e-4"
 
-echo -e "${YELLOW}Running experiment 17: LoRA + Spectrum - Top 75%${RESET}"
-python sonnet_generation_ext.py -e $epochs --lora --spectrum --top_percent 75 --lr "2e-4"
+echo -e "${YELLOW}Running experiment 17: Jacobian + Spectrum - Top 75%${RESET}"
+python sonnet_generation_ext.py -e $epochs --jacobian --spectrum --top_percent 75 --lr "2e-4"
+
+#### Extemsion of regularization with Smart and Spectrum
+echo -e "${YELLOW}Running experiment 18: Smart + Spectrum - Top 25%${RESET}"
+python sonnet_generation_ext.py -e $epochs --smart --spectrum --top_percent 25  --lr "2e-4"
+
+echo -e "${YELLOW}Running experiment 19: smart+ Spectrum - Top 50%${RESET}"
+python sonnet_generation_ext.py -e $epochs --smart --spectrum --top_percent 50 --lr "2e-4"
+
+echo -e "${YELLOW}Running experiment 20: smart + Spectrum - Top 75%${RESET}"
+python sonnet_generation_ext.py -e $epochs --smart --spectrum --top_percent 75 --lr "2e-4"
+
+
+##### Experiments lora and regularizers
+
+echo -e "${YELLOW}Running experiment 21: Jacobian + LORA${RESET}"
+python sonnet_generation_ext.py -e $epochs --jacobian --lora --lr "2e-4"
+
+echo -e "${YELLOW}Running experiment 22: Smart + LORA${RESET}"
+python sonnet_generation_ext.py -e $epochs --smart --lora --lr "2e-4"
+
+
+
+##### Experiments qlora and regularizers
+
+echo -e "${YELLOW}Running experiment 23: Jacobian + QLORA${RESET}"
+python sonnet_generation_ext.py -e $epochs --jacobian --qlora --lr "2e-4"
+
+echo -e "${YELLOW}Running experiment 24: Smart + QLORA ${RESET}"
+python sonnet_generation_ext.py -e $epochs --smart --qlora --lr "2e-4"
+
+
 
 # Completion message
 echo -e "${GREEN}All experiments completed successfully! 🚀${RESET}"
