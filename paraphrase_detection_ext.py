@@ -92,6 +92,12 @@ class ParaphraseGPT(nn.Module):
     else:
       return logits
 
+  def forward_with_embeddings(self, embedding_input, attention_mask):
+    ### YOUR CODE HERE
+    outputs = self.gpt.run_transformer(embedding_input, attention_mask=attention_mask)
+    # return logits
+    output = self.gpt.hidden_state_to_token(outputs['last_hidden_state'])
+    return output
 
 def save_model(model, optimizer, args, filepath):
   save_info = {
@@ -203,7 +209,7 @@ def train(args, experiment_id=1):
           loss += args.jreg_lambda * jacobian_lss
           jacobian_loss_train += jacobian_lss.item()
       if args.smart:
-          sm_loss = smart_loss(x_embed, logits,reshape_required=True, attn_masks=b_mask)
+          sm_loss = smart_loss(x_embed, logits,reshape_required=False, attn_masks=b_mask)
           loss += args.smart_lambda * sm_loss
           smart_loss_train += sm_loss.item()
       accuracy += (preds == labels).sum().item()
@@ -271,6 +277,9 @@ def train(args, experiment_id=1):
         'lora': args.lora,
         'rank': args.rank,
         'alpha': args.alpha,
+        'qlora': args.qlora,
+        'q_rank': args.q_rank,
+        'q_alpha': args.q_alpha,
         'top_percent': args.top_percent,
         'spectrum': args.spectrum,
         'smart': args.smart,
@@ -368,6 +377,10 @@ def get_args():
   parser.add_argument("--lora", action='store_true')
   parser.add_argument("--rank", type=int, default=16)
   parser.add_argument("--alpha", type=int, default=16)
+  ### QLoRA Parameters
+  parser.add_argument("--qlora", action='store_true')
+  parser.add_argument("--q_rank", type=int, default=8)
+  parser.add_argument("--q_alpha", type=int, default=16)
   # Spectrum Parameters
   parser.add_argument("--spectrum", action='store_true')
   parser.add_argument("--top_percent", type=int, default=25)

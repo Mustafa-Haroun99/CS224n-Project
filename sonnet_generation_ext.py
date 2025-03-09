@@ -185,19 +185,6 @@ def train(args, experiment_id=1):
    
    # Early stopping
     early_stopping = EarlyStopping(patience=args.patience, delta=args.delta)
-    
-    # Applying LoRA
-    if args.lora:
-        freeze_all_but_last(model)
-        model = replace_linear_with_lora(model, args.rank, args.alpha)
-        print(model)
-    
-    if args.qlora:
-        model = replace_linear_with_qlora(model, args.q_rank, args.q_alpha)
-        unfreeze_last(model)
-        print(model)
-        for name, param in model.named_parameters():
-            print(f"Layer: {name} | Requires Grad: {param.requires_grad}")
 
     model = model.to(device)
     # Applying Spectrum
@@ -218,6 +205,19 @@ def train(args, experiment_id=1):
     # Smart Regularizer instantiation
     if args.smart:
         smart_loss = SMARTLoss(model.forward_with_embeddings,kl_loss, loss_last_fn = sym_kl_loss, num_steps=args.num_steps, step_size=args.step_size_sm, epsilon=args.epsilon_sm, noise_var=args.noise_var_sm)
+
+    # Applying LoRA
+    if args.lora:
+        freeze_all_but_last(model)
+        model = replace_linear_with_lora(model, args.rank, args.alpha)
+        print(model)
+    
+    if args.qlora:
+        model = replace_linear_with_qlora(model, args.q_rank, args.q_alpha)
+        unfreeze_last(model)
+        print(model)
+        for name, param in model.named_parameters():
+            print(f"Layer: {name} | Requires Grad: {param.requires_grad}")
     
 
     lr = args.lr
