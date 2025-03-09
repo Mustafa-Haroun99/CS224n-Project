@@ -38,6 +38,7 @@ from extensions.lora_layer import replace_linear_with_lora, freeze_all_but_last
 from extensions.spectrum import freeze_model, unfreeze_last
 from extensions.jacobian_reg import JacobianReg
 from extensions.pipeline_utils import store_txt_experiment_data,    generate_experiment_id, keep_latest_epoch_checkpoint
+from extensions.qlora_layer import replace_linear_with_qlora
 from extensions.smart_pytorch import SMARTLoss
 from extensions.smart_loss import kl_loss, sym_kl_loss
 from extensions.dropout_modifier import modify_model_dropout
@@ -313,7 +314,13 @@ def test(args, metrics=None):
   if args.lora:
         freeze_all_but_last(model)
         model = replace_linear_with_lora(model, args.rank, args.alpha)
-
+  if args.qlora:
+      model = replace_linear_with_qlora(model, args.q_rank, args.q_alpha)
+      unfreeze_last(model)
+      print(model)
+      for name, param in model.named_parameters():
+          print(f"Layer: {name} | Requires Grad: {param.requires_grad}")
+      model.to(device)
   model.load_state_dict(saved['model'])
   model = model.to(device)
   model.eval()

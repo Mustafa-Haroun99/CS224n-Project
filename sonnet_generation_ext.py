@@ -218,6 +218,7 @@ def train(args, experiment_id=1):
         print(model)
         for name, param in model.named_parameters():
             print(f"Layer: {name} | Requires Grad: {param.requires_grad}")
+        model.to(device)
     
 
     lr = args.lr
