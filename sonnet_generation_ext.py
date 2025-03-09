@@ -32,7 +32,7 @@ from extensions.lora_layer import replace_linear_with_lora, freeze_all_but_last
 from extensions.qlora_layer import replace_linear_with_qlora, unfreeze_last
 from extensions.spectrum import freeze_model, unfreeze_last
 from extensions.jacobian_reg import JacobianReg
-from extensions.pipeline_utils import store_txt_experiment_data, generate_experiment_id, keep_latest_epoch_checkpoint
+from extensions.pipeline_utils import store_txt_experiment_data, generate_experiment_id, keep_latest_epoch_checkpoint, print_requires_grad
 from extensions.smart_pytorch import SMARTLoss
 from extensions.smart_loss import kl_loss,sym_kl_loss
 from extensions.early_stopper import EarlyStopping
@@ -82,12 +82,13 @@ class SonnetGPT(nn.Module):
             return output, outputs['embeddings']
         return output
     
-    def forward_with_embeddings(self, embedding_input, attention_mask):
-             ### YOUR CODE HERE
-        outputs = self.gpt.run_transformer(embedding_input, attention_mask=attention_mask)
-        # return logits
+    def get_embeddings(self, input_ids):
+        return self.gpt.embed(input_ids)
+
+    def forward_with_embeddings(self, embedding_output, attention_mask):
+        outputs = self.gpt.run_transformer(embedding_output, attention_mask)
         output = self.gpt.hidden_state_to_token(outputs['last_hidden_state'])
-        return output
+        return output 
 
 
     def get_device(self):
@@ -95,7 +96,7 @@ class SonnetGPT(nn.Module):
             return param.device
 
     @torch.no_grad()
-    def generate(self, encoding, temperature=0.7, top_p=0.9, max_length=128):
+    def generate(self, encoding, temperature=0.7, top_p=0.9, max_length=128, debug=False):
         """
         Generates an original sonnet using top-p sampling and softmax temperature.
 
@@ -105,8 +106,13 @@ class SonnetGPT(nn.Module):
         """
         token_ids = encoding.to(self.get_device())
         attention_mask = torch.ones(token_ids.shape, dtype=torch.int64).to(self.get_device())
+        I = 0
 
         for _ in range(max_length):
+            if debug:
+                if I == 10:
+                    break
+                I += 1
             # Forward pass to get logits
             logits_sequence = self.forward(token_ids, attention_mask)
             logits_last_token = logits_sequence[:, -1, :] / temperature  # Apply temperature scaling
@@ -158,7 +164,9 @@ def save_model(model, optimizer, args, filepath):
 def train(args, experiment_id=1):
     """Train GPT-2 for paraphrase detection on the Quora dataset."""
     device = torch.device('cuda') if args.use_gpu else torch.device('cpu')
-    
+    if args.debug:
+      print("\033[91m############### Debugging mode  is ON#############\033[0m")
+      DEBUGGING = args.debug
     #### Instantiating Tensorboard Writter
     experiment_path = args.filepath.replace('.pt', '').replace('experiments/', 'runs/')
     save_model_dir = args.filepath.replace('.pt', f'')
@@ -224,6 +232,7 @@ def train(args, experiment_id=1):
     lr = args.lr
     optimizer = AdamW(model.parameters(), lr=lr, weight_decay=args.weight_decay)
     scheduler = ReduceLROnPlateau(optimizer, patience=10, verbose=True)
+    print_requires_grad(model)
     # Run for the specified number of epochs.
     last_epoch = 0
     for epoch in range(args.epochs):
@@ -239,11 +248,18 @@ def train(args, experiment_id=1):
             b_ids, b_mask = batch['token_ids'], batch['attention_mask']
             b_ids = b_ids.to(device)
             b_mask = b_mask.to(device)
-
+            if args.debug:
+                if I == 10:
+                    break
+                I += 1
             # Compute the loss, gradients, and update the model's parameters.
             optimizer.zero_grad()
-            if args.smart or args.jacobian:
-                logits, x_embed = model(b_ids, b_mask, return_input_embeddings=True)
+            if args.jacobian or args.smart:
+                x_embed = model.get_embeddings(b_ids)
+                enforce_grad = not x_embed.requires_grad
+                if enforce_grad:
+                    x_embed.requires_grad_(True)
+                logits = model.forward_with_embeddings(x_embed, b_mask)
             else:
                 logits = model(b_ids, b_mask)
 
@@ -287,7 +303,7 @@ def train(args, experiment_id=1):
         model.eval()
         for batch in held_out_sonnet_dataset:
             encoding = model.tokenizer(batch[1], return_tensors='pt', padding=True, truncation=True).to(device)
-            output = model.generate(encoding['input_ids'], temperature=args.temperature, top_p=args.top_p)
+            output = model.generate(encoding['input_ids'], temperature=args.temperature, top_p=args.top_p, debug=args.debug)
             print(f'{batch[1]}{output[1]}\n\n')
 
         # TODO: consider a stopping condition to prevent overfitting on the small dataset of sonnets.
@@ -335,7 +351,7 @@ def train(args, experiment_id=1):
 
 
 @torch.no_grad()
-def generate_submission_sonnets(args, experiment_id, last_epoch=None):
+def generate_submission_sonnets(args, experiment_id, last_epoch=None, debug=False):
     device = torch.device('cuda') if args.use_gpu else torch.device('cpu')
     load_file_path = args.filepath.replace('.pt', f'/sonnet_{experiment_id}_{last_epoch}.pt')
     
@@ -346,15 +362,35 @@ def generate_submission_sonnets(args, experiment_id, last_epoch=None):
         freeze_all_but_last(model)
         model = replace_linear_with_lora(model, args.rank, args.alpha)
 
+    if args.qlora:
+      model = replace_linear_with_qlora(model, args.q_rank, args.q_alpha)
+      unfreeze_last(model)
+      print(model)
+      for name, param in model.named_parameters():
+          print(f"Layer: {name} | Requires Grad: {param.requires_grad}")
+      model.to(device)
+      # Check if the model contains `bnb.nn.Linear4bit` before loading
+      for name, module in model.named_modules():
+          if isinstance(module, torch.nn.Linear):
+              print(f"Warning: {name} is torch.nn.Linear but expected Linear4bit!")
+    
+    if args.qlora:
+            from extensions.pipeline_utils import load_qlora_state_dict
+            model = load_qlora_state_dict(model, saved['model'])
+
     model.load_state_dict(saved['model'])
     model = model.to(device)
     model.eval()
 
     # Create the held-out dataset: these only have the first 3 lines. Your job is to fill in the rest!
     held_out_sonnet_dataset = SonnetsDataset(args.held_out_sonnet_path)
-
+    I=0
     generated_sonnets = []
     for batch in held_out_sonnet_dataset:
+        if args.debug:
+            if I == 10:
+                break
+            I +=1
         sonnet_id = batch[0]
         encoding = model.tokenizer(batch[1], return_tensors='pt', padding=False, truncation=True).to(device)
         output = model.generate(encoding['input_ids'], temperature=args.temperature, top_p=args.top_p)[0][0]
@@ -422,6 +458,7 @@ def get_args():
     parser.add_argument("--change_dropout", action='store_true')
     parser.add_argument("--dropout", type=float, default=0.1)
     parser.add_argument('--attn_dropout', type=float, default=0.)
+    parser.add_argument('--debug', action='store_true')
 
     args = parser.parse_args()
     return args
