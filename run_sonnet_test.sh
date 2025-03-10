@@ -18,7 +18,7 @@ echo -e "${YELLOW}Running experiment 3: Standard Model${RESET} with Temperature 
 python sonnet_generation_ext.py -e $epochs --temperature 1.0 --debug
 
 echo -e "${YELLOW}Running experiment 4: Standard Model${RESET} with Learning Rate 1e-3"
-python sonnet_generation_ext.py -e $epochs --lr "1e-3" --debug
+python sonnet_generation_ext.py -e $epochs --lr "1e-4" --debug
 
 
 echo -e "${YELLOW}Running experiment 5: Standard Model${RESET} with Weight Decay 1e-3"

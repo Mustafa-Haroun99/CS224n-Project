@@ -95,7 +95,7 @@ def keep_latest_epoch_checkpoint(file_path, latest_epoch):
             os.remove(file)
             print(f"Deleted: {file}")
     
-    print(f"Kept latest checkpoint: {file_path}/sonnet_{latest_epoch}.pt")
+    print(f"Kept latest checkpoint: {file_path}sonnet_{latest_epoch}.pt")
 
 def print_requires_grad(model, parent_name=""):
     """

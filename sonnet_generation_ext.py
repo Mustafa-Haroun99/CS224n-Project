@@ -20,6 +20,7 @@ from tqdm import tqdm
 from transformers import GPT2Tokenizer
 from einops import rearrange
 from torch.utils.tensorboard import SummaryWriter
+from transformers import get_cosine_schedule_with_warmup
 
 from datasets import (
     SonnetsDataset,
@@ -227,8 +228,15 @@ def train(args, experiment_id=1):
     
 
     lr = args.lr
-    optimizer = AdamW(model.parameters(), lr=lr, weight_decay=args.weight_decay)
-    scheduler = ReduceLROnPlateau(optimizer, patience=10)
+    optimizer = AdamW(model.parameters(), lr=lr, weight_decay=args.weight_decay)                         
+    total_epochs = args.epochs                         
+    steps_per_epoch = len(sonnet_dataloader)   
+    # Total steps for the entire training process
+    total_steps = steps_per_epoch * total_epochs
+    scheduler = get_cosine_schedule_with_warmup(
+    optimizer,
+    num_warmup_steps=100,
+    num_training_steps=total_steps)
     if args.verbose:
         print_requires_grad(model)
     # Run for the specified number of epochs.
@@ -277,6 +285,7 @@ def train(args, experiment_id=1):
             
             loss.backward()
             optimizer.step()
+            scheduler.step()  # UPDATING SCHEDULER
 
             train_loss += loss.item()
             num_batches += 1
@@ -306,7 +315,6 @@ def train(args, experiment_id=1):
 
         # TODO: consider a stopping condition to prevent overfitting on the small dataset of sonnets.
         early_stopping(train_loss, model)
-        scheduler.step(train_loss)
         if early_stopping.early_stop:
             print("Early stopping")
             break
@@ -316,7 +324,7 @@ def train(args, experiment_id=1):
         last_epoch = epoch
         if epoch % 5 == 0:
             keep_latest_epoch_checkpoint(args.filepath.replace('.pt', '/'), epoch)
-        
+    
     metrics= {
         'experiment_id': experiment_id,
         'epochs': args.epochs,
