@@ -112,3 +112,4 @@ t.ipynb_checkpoints
 runs/*
 experiments/*
 .ssh
+*.zip

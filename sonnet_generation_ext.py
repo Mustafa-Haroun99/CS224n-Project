@@ -226,7 +226,6 @@ def train(args, experiment_id=1):
 
     model.to(device)
     
-
     lr = args.lr
     optimizer = AdamW(model.parameters(), lr=lr, weight_decay=args.weight_decay)                         
     total_epochs = args.epochs                         

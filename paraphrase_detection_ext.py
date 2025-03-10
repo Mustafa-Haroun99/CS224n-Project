@@ -25,6 +25,7 @@ from torch import nn
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from torch.utils.tensorboard import SummaryWriter
+from transformers import get_cosine_schedule_with_warmup
 
 from datasets import (
   ParaphraseDetectionDataset,
@@ -37,7 +38,7 @@ from models.gpt2 import GPT2Model
 from extensions.lora_layer import replace_linear_with_lora, freeze_all_but_last
 from extensions.spectrum import freeze_model, unfreeze_last
 from extensions.jacobian_reg import JacobianReg
-from extensions.pipeline_utils import store_txt_experiment_data,    generate_experiment_id, keep_latest_epoch_checkpoint, print_requires_grad
+from extensions.pipeline_utils import store_txt_experiment_data, generate_experiment_id, keep_latest_epoch_checkpoint, print_requires_grad
 from extensions.qlora_layer import replace_linear_with_qlora
 from extensions.smart_pytorch import SMARTLoss
 from extensions.smart_loss import kl_loss, sym_kl_loss
@@ -47,7 +48,6 @@ from optimizer import AdamW
 
 
 TQDM_DISABLE = False
-DEBUGGING = False
 
 
 # Fix the random seed.
@@ -126,7 +126,6 @@ def train(args, experiment_id=1):
   experiment_path = args.filepath.replace('.pt', '').replace('experiments/', 'runs/')
   if args.debug:
       print("\033[91m############### Debugging mode  is ON#############\033[0m")
-      DEBUGGING = args.debug
   writer = SummaryWriter(f'{experiment_path}_{experiment_id}')
   save_model_dir = args.filepath.replace('.pt', f'')
   print(f"Saving model to {save_model_dir}")
@@ -185,6 +184,14 @@ def train(args, experiment_id=1):
   lr = args.lr
   optimizer = AdamW(model.parameters(), lr=lr, weight_decay=0.)
   best_dev_acc = 0
+  total_epochs = args.epochs                         
+  steps_per_epoch = len(para_train_dataloader)   
+  # Total steps for the entire training process
+  total_steps = steps_per_epoch * total_epochs
+  scheduler = get_cosine_schedule_with_warmup(
+    optimizer,
+    num_warmup_steps=100,
+    num_training_steps=total_steps)
 
   print_requires_grad(model)
   # import sys; sys.exit()  
@@ -200,7 +207,7 @@ def train(args, experiment_id=1):
     jacobian_loss_train = 0
     I = 0
     for batch in tqdm(para_train_dataloader, desc=f'train-{epoch}', disable=TQDM_DISABLE):
-      if DEBUGGING:
+      if args.debug:
         if I==10: # FOR TESTING
           break
         I+=1
@@ -236,6 +243,7 @@ def train(args, experiment_id=1):
       accuracy += (preds == labels).sum().item()
       loss.backward()
       optimizer.step()
+      scheduler.step()
 
       train_loss += loss.item()
       num_batches += 1

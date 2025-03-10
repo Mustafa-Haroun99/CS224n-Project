@@ -1,76 +1,3 @@
-# import torch
-# import torch.nn as nn
-# import bitsandbytes as bnb  # QLoRA requires bitsandbytes for 4-bit quantization
-# import math
-
-# class QLoraLayer(nn.Module):
-#     def __init__(self, in_dim, out_dim, rank, alpha):
-#         super(QLoraLayer, self).__init__()
-#         self.A = nn.Parameter(torch.Tensor(in_dim, rank))
-#         self.B = nn.Parameter(torch.Tensor(out_dim, rank))
-#         self.alpha = alpha
-#         nn.init.xavier_uniform_(self.A)
-#         nn.init.kaiming_uniform_(self.B, a=math.sqrt(5))
-
-#     def forward(self, x):
-#         return self.alpha * x @ self.A @ self.B.t()
-
-# class QuantizedLinearWithLora(nn.Module):
-#     def __init__(self, in_dim, out_dim, rank, alpha):
-#         super(QuantizedLinearWithLora, self).__init__()
-        
-#         # Apply 4-bit quantization to Linear layer
-#         self.linear = bnb.nn.Linear4bit(in_dim, out_dim, bias=True)
-        
-#         # LoRA Adapter
-#         self.lora = QLoraLayer(in_dim, out_dim, rank, alpha)
-
-#     def forward(self, x):
-#         return self.linear(x) + self.lora(x)
-
-# def replace_linear_with_qlora(model, rank=8, alpha=16):
-#     """
-#     Replaces all `torch.nn.Linear` layers in the model with 4-bit quantized 
-#     LoRA-enhanced layers for efficient fine-tuning.
-    
-#     Args:
-#         model (torch.nn.Module): The base model to modify.
-#         rank (int): The rank of the LoRA adaptation.
-#         alpha (int): Scaling factor for LoRA.
-    
-#     Returns:
-#         torch.nn.Module: The modified model with QLoRA applied.
-#     """
-#     last_layer_name, _ = list(model.named_modules())[-1]                  
-    
-#     for name, module in model.named_children():
-#         if name != last_layer_name and isinstance(module, nn.Linear):
-#             setattr(model, name, QuantizedLinearWithLora(module.in_features, module.out_features, rank, alpha))
-#         else:
-#             replace_linear_with_qlora(module, rank, alpha)
-
-#     return model
-
-# def freeze_all_except_lora(model, verbose=False):
-#     """
-#     Freezes all layers except LoRA layers.
-    
-#     Args:
-#         model (torch.nn.Module): The model to modify.
-#         verbose (bool): If True, prints which parameters remain trainable.
-    
-#     Returns:
-#         None
-#     """
-#     for name, param in model.named_parameters():
-#         if "lora" not in name:
-#             param.requires_grad = False  # Freeze non-LoRA parameters
-    
-#     if verbose:
-#         for name, param in model.named_parameters():
-#             print(f"{name}: requires_grad = {param.requires_grad}")
-
-
 
 import torch
 import torch.nn as nn
@@ -105,14 +32,11 @@ class QLoraLayer(nn.Module):
         self.rank = rank
         self.alpha = alpha
         
-        # Initialize A with small random values and B with zeros
         self.A = nn.Parameter(torch.empty(in_dim, rank))
         self.B = nn.Parameter(torch.zeros(rank, out_dim))
         
-        # Initialize A with small random values
         nn.init.normal_(self.A, std=math.sqrt(1.0 / in_dim))
         
-        # Scale factor for forward pass
         self.scaling = alpha / rank
     
     def forward(self, x):
@@ -124,7 +48,7 @@ class QuantizedLinearWithLora(nn.Module):
     def __init__(self, linear_module, rank, alpha, bias=True):
         super(QuantizedLinearWithLora, self).__init__()
         
-        # Get dimensions directly from the original module
+        
         self.in_features = linear_module.in_features
         self.out_features = linear_module.out_features
         
@@ -133,12 +57,11 @@ class QuantizedLinearWithLora(nn.Module):
             self.in_features, 
             self.out_features,
             bias=bias,
-            compute_dtype=torch.float16  # Use fp16 for compute operations
+            compute_dtype=torch.float16  
         )
         
-        # Copy weights if the linear_module has weights
+       
         if hasattr(linear_module, 'weight'):
-            # For Linear4bit, we need special handling
             if hasattr(self.linear, 'weight') and linear_module.weight.shape == self.linear.weight.shape:
                 self.linear.weight.data = linear_module.weight.data
         
@@ -155,7 +78,6 @@ class QuantizedLinearWithLora(nn.Module):
         self.lora = QLoraLayer(self.in_features, self.out_features, rank, alpha)
     
     def forward(self, x):
-        # Combine the outputs
         return self.linear(x) + self.lora(x)
 
 

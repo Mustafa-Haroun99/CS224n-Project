@@ -44,7 +44,7 @@ def extract_tensorboard_data(log_dir):
     loss_data = []
     acc_data = []
     
-    # Adjust these tag names based on what's in your TensorBoard file
+    # TODO: ADJUST THESE BASED ON WHAT WE HAVE IN OUR TENSORFLOW FILES
     loss_tag = "loss" if "loss" in tags else "train/loss"
     acc_tag = "accuracy" if "accuracy" in tags else "train/accuracy"
     
@@ -62,22 +62,6 @@ def extract_tensorboard_data(log_dir):
     
     return loss_array, acc_array
 
-# # Example usage
-# log_dir = "path/to/your/logs/directory"  # This should be the directory containing the events file
-# loss_array, acc_array = extract_tensorboard_data(log_dir)
-
-# # Now you have two arrays:
-# # loss_array with columns [step, loss_value]
-# # acc_array with columns [step, accuracy_value]
-
-# # Extract just the epoch numbers and values if needed
-# epochs = loss_array[:, 0]
-# loss_values = loss_array[:, 1]
-# accuracy_values = acc_array[:, 1]
-
-# print(f"Epochs: {epochs}")
-# print(f"Loss values: {loss_values}")
-# print(f"Accuracy values: {accuracy_values}")
 
 
 def keep_latest_epoch_checkpoint(file_path, latest_epoch):
@@ -110,9 +94,9 @@ def print_requires_grad(model, parent_name=""):
         
         # If the module has parameters, print whether requires_grad is True/False
         if any(p.requires_grad for p in module.parameters(recurse=False)):  
-            status = "Trainable ✅"
+            status = "Trainable "
         else:
-            status = "Frozen ❌"
+            status = "Frozen "
         
         print(f"Layer: {full_name} | {status}")
 
@@ -155,7 +139,7 @@ def load_qlora_state_dict(model, state_dict):
         elif is_qlora_param and key in model_state_dict:
             compatible_state_dict[key] = value
     
-    # For debugging, print how many parameters were loaded vs. available
+    # For debugging
     print(f"Loaded {len(compatible_state_dict)} parameters out of {len(model_state_dict)} available in the model")
     
     # Load the filtered state dict
@@ -163,7 +147,6 @@ def load_qlora_state_dict(model, state_dict):
     return model
 
 
-# Alternative approach: convert model back to FP32 before loading
 def dequantize_model_for_loading(model):
     """
     Convert a QLoRA model back to standard torch.nn.Linear layers
@@ -179,26 +162,22 @@ def dequantize_model_for_loading(model):
     
     for name, module in list(model.named_children()):
         if isinstance(module, bnb.nn.Linear4bit):
-            # Create a new standard linear layer
+    
             standard_linear = torch.nn.Linear(
                 module.in_features, 
                 module.out_features,
                 bias=module.bias is not None
             )
             
-            # Copy weights if possible (might need special handling)
+        
             if hasattr(module, 'weight'):
-                # This might need dequantization logic depending on bitsandbytes version
                 standard_linear.weight.data = module.weight.data.float()
             
-            # Copy bias if it exists
             if module.bias is not None:
                 standard_linear.bias.data = module.bias.data
                 
-            # Replace the module
             setattr(model, name, standard_linear)
         
-        # Recursively process child modules
         elif len(list(module.children())) > 0:
             dequantize_model_for_loading(module)
             
