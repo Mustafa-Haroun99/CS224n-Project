@@ -67,7 +67,7 @@ class JacobianReg(nn.Module):
         v=torch.randn(B,C)
         arxilirary_zero=torch.zeros(B,C)
         vnorm=torch.norm(v, 2, 1,True)
-        v=torch.addcdiv(arxilirary_zero, 1.0, v, vnorm)
+        v = torch.addcdiv(arxilirary_zero, v, vnorm, value=1.0)
         return v
                                                                             
     def _jacobian_vector_product(self, y, x, v, create_graph=False): 

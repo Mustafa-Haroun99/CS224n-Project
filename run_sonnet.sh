@@ -11,31 +11,29 @@ echo "Debug: Running with epochs=$epochs"
 echo -e "${YELLOW}Running experiment 1: Standard Model${RESET}"
 python sonnet_generation_ext.py -e $epochs
 
-echo -e "${YELLOW}Running experiment 2: Standard Model${RESET} with Temperature 0.3"
-python sonnet_generation_ext.py -e $epochs --temperature 0.3
 
-echo -e "${YELLOW}Running experiment 3: Standard Model${RESET} with Temperature 0.5"
+echo -e "${YELLOW}Running experiment 2: Standard Model${RESET} with Temperature 0.5"
 python sonnet_generation_ext.py -e $epochs --temperature 0.5
 
-echo -e "${YELLOW}Running experiment 4: Standard Model${RESET} with Temperature 0.8"
+echo -e "${YELLOW}Running experiment 3: Standard Model${RESET} with Temperature 0.8"
 python sonnet_generation_ext.py -e $epochs --temperature 0.8
 
-echo -e "${YELLOW}Running experiment 5: Standard Model${RESET} with Temperature 1.0"
+echo -e "${YELLOW}Running experiment 4: Standard Model${RESET} with Temperature 1.0"
 python sonnet_generation_ext.py -e $epochs --temperature 1.0
 
-echo -e "${YELLOW}Running experiment 6: Standard Model${RESET} with Learning Rate 1e-3"
+echo -e "${YELLOW}Running experiment 5: Standard Model${RESET} with Learning Rate 1e-3"
 python sonnet_generation_ext.py -e $epochs --lr "1e-3"
 
-echo -e "${YELLOW}Running experiment 7: Standard Model${RESET} with Learning Rate 1e-5"
+echo -e "${YELLOW}Running experiment 6: Standard Model${RESET} with Learning Rate 1e-5"
 python sonnet_generation_ext.py -e $epochs --lr "1e-5"
 
-echo -e "${YELLOW}Running experiment 8: Standard Model${RESET} with Weight Decay 1e-3"
+echo -e "${YELLOW}Running experiment 7: Standard Model${RESET} with Weight Decay 1e-3"
 python sonnet_generation_ext.py -e $epochs --weight_decay "1e-3"
 
-echo -e "${YELLOW}Running experiment 9: Standard Model${RESET} with Weight Decay 1e-2"
+echo -e "${YELLOW}Running experiment 8: Standard Model${RESET} with Weight Decay 1e-2"
 python sonnet_generation_ext.py -e $epochs --weight_decay "1e-2"
 
-echo -e "${YELLOW}Running experiment 10: Standard Model${RESET} with Weight Decay 1e-4"
+echo -e "${YELLOW}Running experiment 9: Standard Model${RESET} with Weight Decay 1e-4"
 python sonnet_generation_ext.py -e $epochs --weight_decay "1e-4"
 
 
@@ -111,7 +109,6 @@ python sonnet_generation_ext.py -e $epochs --jacobian --lora --lr "2e-4"
 
 echo -e "${YELLOW}Running experiment 22: Smart + LORA${RESET}"
 python sonnet_generation_ext.py -e $epochs --smart --lora --lr "2e-4"
-
 
 
 ##### Experiments qlora and regularizers

@@ -219,21 +219,19 @@ def train(args, experiment_id=1):
     if args.lora:
         freeze_all_but_last(model)
         model = replace_linear_with_lora(model, args.rank, args.alpha)
-        print(model)
     
     if args.qlora:
         model = replace_linear_with_qlora(model, args.q_rank, args.q_alpha)
         unfreeze_last(model)
-        print(model)
-        for name, param in model.named_parameters():
-            print(f"Layer: {name} | Requires Grad: {param.requires_grad}")
-        model.to(device)
+
+    model.to(device)
     
 
     lr = args.lr
     optimizer = AdamW(model.parameters(), lr=lr, weight_decay=args.weight_decay)
     scheduler = ReduceLROnPlateau(optimizer, patience=10, verbose=True)
-    print_requires_grad(model)
+    if args.verbose:
+        print_requires_grad(model)
     # Run for the specified number of epochs.
     last_epoch = 0
     for epoch in range(args.epochs):
@@ -297,15 +295,15 @@ def train(args, experiment_id=1):
             writer.add_scalar('SMART/train', smart_train_loss, epoch)
         writer.add_scalar('Learning Rate', current_lr, epoch)
         writer.flush()
-        print()
-
+ 
         print(f"Epoch {epoch}: train loss :: {train_loss :.3f}.")
         print('Generating several output sonnets...')
         model.eval()
         for batch in held_out_sonnet_dataset:
             encoding = model.tokenizer(batch[1], return_tensors='pt', padding=True, truncation=True).to(device)
             output = model.generate(encoding['input_ids'], temperature=args.temperature, top_p=args.top_p, debug=args.debug)
-            print(f'{batch[1]}{output[1]}\n\n')
+            if args.verbose:
+                print(f'{batch[1]}{output[1]}\n\n')
 
         # TODO: consider a stopping condition to prevent overfitting on the small dataset of sonnets.
         early_stopping(train_loss, model)
@@ -386,8 +384,8 @@ def generate_submission_sonnets(args, experiment_id, last_epoch=None, debug=Fals
         decoded_output = model.tokenizer.decode(output)
         full_sonnet = f'{decoded_output}\n\n'
         generated_sonnets.append((sonnet_id, full_sonnet))
-
-        print(f'{decoded_output}\n\n')
+        if args.verbose:
+            print(f'{decoded_output}\n\n')
     store_sonnets_path = args.filepath.replace('.pt', f'/generated_sonnets.txt')
     with open(store_sonnets_path, "w+") as f:
         f.write(f"--Generated Sonnets-- \n\n")
@@ -448,6 +446,7 @@ def get_args():
     parser.add_argument("--dropout", type=float, default=0.1)
     parser.add_argument('--attn_dropout', type=float, default=0.)
     parser.add_argument('--debug', action='store_true')
+    parser.add_argument('--verbose', action='store_true')
 
     args = parser.parse_args()
     return args
