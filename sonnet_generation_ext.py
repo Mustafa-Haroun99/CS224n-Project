@@ -204,7 +204,6 @@ def train(args, experiment_id=1):
         else:
             freeze_model(model, weights_path)
         unfreeze_last(model)
-        print(model)
         model = model.to(device)
     
     # Applying Jacobian Regularization
@@ -229,7 +228,7 @@ def train(args, experiment_id=1):
 
     lr = args.lr
     optimizer = AdamW(model.parameters(), lr=lr, weight_decay=args.weight_decay)
-    scheduler = ReduceLROnPlateau(optimizer, patience=10, verbose=True)
+    scheduler = ReduceLROnPlateau(optimizer, patience=10)
     if args.verbose:
         print_requires_grad(model)
     # Run for the specified number of epochs.
@@ -362,7 +361,6 @@ def generate_submission_sonnets(args, experiment_id, last_epoch=None, debug=Fals
         model = replace_linear_with_lora(model, args.rank, args.alpha)
 
     if args.qlora:
-        
         model = load_qlora_state_dict(model, saved['model'])
     else:
         model.load_state_dict(saved['model'])
