@@ -384,7 +384,8 @@ def generate_submission_sonnets(args, experiment_id, last_epoch=None, debug=Fals
         generated_sonnets.append((sonnet_id, full_sonnet))
         if args.verbose:
             print(f'{decoded_output}\n\n')
-    store_sonnets_path = args.filepath.replace('.pt', f'/generated_sonnets.txt')
+    file_out = args.sonnet_out.replace('predictions/', "" )
+    store_sonnets_path = args.filepath.replace('.pt', f'/{file_out}')
     with open(store_sonnets_path, "w+") as f:
         f.write(f"--Generated Sonnets-- \n\n")
         for sonnet in generated_sonnets:
@@ -475,6 +476,7 @@ if __name__ == "__main__":
     ### Fixing Paths for Dev ###
     args.held_out_sonnet_path = 'data/sonnets_held_out_dev.txt'
     args.sonnet_out = 'predictions/generated_sonnets_dev.txt'
+    args.sonnet_out.replace('predictions/', "" )
     ## Generating Experiment ID and Modifying Paths
     os.makedirs('experiments/sonnet/', exist_ok=True)
     model_path = f'sonnet/{experiment_id}.pt'
