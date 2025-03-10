@@ -147,7 +147,14 @@ def train(args, experiment_id=1):
                                    collate_fn=para_dev_data.collate_fn)
 
   args = add_arguments(args)
-  model = ParaphraseGPT(args)
+   # Load model if specified
+  if args.load_model:
+      saved = torch.load(args.model_path)
+      model = ParaphraseGPT(saved['args'])
+      model.load_state_dict(saved['model'])
+      print(f"Loaded model from {args.model_path}")
+  else:
+      model = ParaphraseGPT(args)
  
  # Adding change in dropout rates
   if args.change_dropout:
@@ -185,13 +192,6 @@ def train(args, experiment_id=1):
   # Smart Regularizer instantiation
   if args.smart:
       smart_loss = SMARTLoss(model.forward_with_embeddings,kl_loss, loss_last_fn = sym_kl_loss, num_steps=args.num_steps, step_size=args.step_size_sm, epsilon=args.epsilon_sm, noise_var=args.noise_var_sm)
-
-  # Load model if specified
-  if args.load_model:
-      checkpoint = torch.load(args.model_path)
-      model.load_state_dict(checkpoint['model_state_dict'])
-      optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-      print(f"Loaded model from {load_model}")
    
   lr = args.lr
   optimizer = AdamW(model.parameters(), lr=lr, weight_decay=0.)
