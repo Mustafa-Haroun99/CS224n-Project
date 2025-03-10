@@ -188,7 +188,7 @@ def train(args, experiment_id=1):
 
   # Load model if specified
   if args.load_model:
-      checkpoint = torch.load(load_model)
+      checkpoint = torch.load(args.model_path)
       model.load_state_dict(checkpoint['model_state_dict'])
       optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
       print(f"Loaded model from {load_model}")
@@ -453,7 +453,8 @@ def get_args():
   parser.add_argument('--attn_dropout', type=float, default=0.1)
   parser.add_argument('--debug', action='store_true')
   ## Loading a Saved Model 
-  parser.add_argument('--load_model', type=str, default='', help='Path to load pre-trained model')
+  parser.add_argument('--load_model', action='store_true')
+  parser.add_argument('--model_path', type=str, default='', help='Path to load pre-trained model')
 
   args = parser.parse_args()
   return args
