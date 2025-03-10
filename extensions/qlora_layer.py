@@ -147,7 +147,7 @@ class QuantizedLinearWithLora(nn.Module):
             if linear_module.bias.shape == self.linear.bias.shape:
                 self.linear.bias.data.copy_(linear_module.bias.data)
             else:
-                print(f"Warning: Bias dimension mismatch - expected {self.linear.bias.shape}, got {linear_module.bias.shape}")
+                # print(f"Warning: Bias dimension mismatch - expected {self.linear.bias.shape}, got {linear_module.bias.shape}")
                 # Initialize with zeros instead of copying
                 nn.init.zeros_(self.linear.bias)
         
@@ -197,7 +197,7 @@ def replace_linear_with_qlora(model, rank=8, alpha=16, target_modules=None, excl
                     bias=module.bias is not None
                 )
                 setattr(model, name, new_module)
-                print(f"Successfully applied QLoRA to {name}")
+                # print(f"Successfully applied QLoRA to {name}")
             except Exception as e:
                 print(f"Error applying QLoRA to {name}: {str(e)}")
                 # Continue without replacing this module

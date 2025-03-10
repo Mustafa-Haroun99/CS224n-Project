@@ -444,8 +444,8 @@ def get_args():
   parser.add_argument("--noise_var_sm", type=float, default=1e-5)
   parser.add_argument("--smart_lambda", type=float, default=1e-5)
   ### Early Stopping Patience
-  parser.add_argument("--patience", type=int, default=5)
-  parser.add_argument("--delta", type=float, default=1e-4)
+  parser.add_argument("--patience", type=int, default=15)
+  parser.add_argument("--delta", type=float, default=1e-5)
   ## Dropout Parameter Experiments
   parser.add_argument("--change_dropout", action='store_true')
   parser.add_argument("--dropout", type=float, default=0.1)
