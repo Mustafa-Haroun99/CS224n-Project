@@ -25,6 +25,7 @@ from torch import nn
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from torch.utils.tensorboard import SummaryWriter
+from transformers import get_cosine_schedule_with_warmup
 
 from datasets import (
   ParaphraseDetectionDataset,
@@ -147,12 +148,13 @@ def train(args, experiment_id=1):
 
   args = add_arguments(args)
   model = ParaphraseGPT(args)
+ 
  # Adding change in dropout rates
   if args.change_dropout:
       modify_model_dropout(model, args.dropout, args.attn_dropout)
   
   # Early stopping
-  early_stopping = EarlyStopping(patience=args.patience, delta=args.delta)
+  # early_stopping = EarlyStopping(patience=args.patience, delta=args.delta)
   
   # Applying LoRA
   if args.lora:
@@ -163,7 +165,7 @@ def train(args, experiment_id=1):
     model = replace_linear_with_qlora(model, args.q_rank, args.q_alpha)
     unfreeze_last(model)
     print(model)
-
+   
   model = model.to(device)
   # Applying Spectrum
   if args.spectrum:
@@ -184,9 +186,24 @@ def train(args, experiment_id=1):
   if args.smart:
       smart_loss = SMARTLoss(model.forward_with_embeddings,kl_loss, loss_last_fn = sym_kl_loss, num_steps=args.num_steps, step_size=args.step_size_sm, epsilon=args.epsilon_sm, noise_var=args.noise_var_sm)
 
+  # Load model if specified
+  if args.load_model:
+      checkpoint = torch.load(load_model)
+      model.load_state_dict(checkpoint['model_state_dict'])
+      optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+      print(f"Loaded model from {load_model}")
+   
   lr = args.lr
   optimizer = AdamW(model.parameters(), lr=lr, weight_decay=0.)
   best_dev_acc = 0
+  total_epochs = args.epochs                         
+  steps_per_epoch = len(para_train_dataloader)   
+  # Total steps for the entire training process
+  total_steps = steps_per_epoch * total_epochs
+  scheduler = get_cosine_schedule_with_warmup(
+  optimizer,
+  num_warmup_steps=500,
+  num_training_steps=total_steps)
 
   print_requires_grad(model)
   # import sys; sys.exit()  
@@ -238,6 +255,7 @@ def train(args, experiment_id=1):
       accuracy += (preds == labels).sum().item()
       loss.backward()
       optimizer.step()
+      scheduler.step()
 
       train_loss += loss.item()
       num_batches += 1
@@ -275,10 +293,10 @@ def train(args, experiment_id=1):
       save_model(model, optimizer, args, save_model_to)
       best_epoch = epoch
        
-    early_stopping(dev_acc, model)
-    if early_stopping.early_stop:
-        print("Early stopping")
-        break
+    # early_stopping(dev_acc, model)
+    # if early_stopping.early_stop:
+    #     print("Early stopping")
+    #     break
         
 
     print(f"Epoch {epoch}: train loss :: {train_loss :.3f}, dev acc :: {dev_acc :.3f}")
@@ -434,6 +452,8 @@ def get_args():
   parser.add_argument("--dropout", type=float, default=0.1)
   parser.add_argument('--attn_dropout', type=float, default=0.1)
   parser.add_argument('--debug', action='store_true')
+  ## Loading a Saved Model 
+  parser.add_argument('--load_model', type=str, default='', help='Path to load pre-trained model')
 
   args = parser.parse_args()
   return args
