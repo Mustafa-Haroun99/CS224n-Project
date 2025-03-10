@@ -16,10 +16,10 @@ python sonnet_generation_ext.py -e $epochs --model_size $model
 echo -e "${YELLOW}Running experiment 2: Standard Model${RESET} with Temperature 0.8"
 python sonnet_generation_ext.py -e $epochs --temperature 0.8 --lr "1e-4" --model_size $model
 
-echo -e "${YELLOW}Running experiment 3: Standard Model${RESET}"
+echo -e "${YELLOW}Running experiment 3: Standard Model with dropout 0.05${RESET} "
 python sonnet_generation_ext.py -e $epochs --change_dropout --dropout 0.05 --lr "1e-4" --model_size $model
 
-echo -e "${YELLOW}Running experiment 4: Standard Model${RESET}"
+echo -e "${YELLOW}Running experiment 4: Standard Model with dropout 0.15${RESET}"
 python sonnet_generation_ext.py -e $epochs --change_dropout --dropout 0.15 --lr "1e-4" --model_size $model
 
 echo -e "${YELLOW}Running experiment 5: Standard Model${RESET}"

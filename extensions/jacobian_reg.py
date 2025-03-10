@@ -55,6 +55,7 @@ class JacobianReg(nn.Module):
             Jv = self._jacobian_vector_product(y, x, v, create_graph=True)
             J2 += C*torch.norm(Jv)**2 / (num_proj*B)
         R = (1/2)*J2
+
         return R
 
     def _random_vector(self, C, B):
@@ -82,4 +83,9 @@ class JacobianReg(nn.Module):
         grad_x, = torch.autograd.grad(flat_y, x, flat_v, 
                                         retain_graph=True, 
                                         create_graph=create_graph)
+        # Apply clipping to the gradients
+        max_norm = 1.0  
+        grad_norm = grad_x.norm()
+        if grad_norm > max_norm:
+            grad_x = grad_x * (max_norm / grad_norm)
         return grad_x
