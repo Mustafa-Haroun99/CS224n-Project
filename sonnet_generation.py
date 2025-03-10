@@ -68,6 +68,7 @@ class SonnetGPT(nn.Module):
     return self.gpt.hidden_state_to_token(outputs['last_hidden_state'])
 
 
+
   def get_device(self):
     for param in self.gpt.parameters():
       return param.device
@@ -136,7 +137,16 @@ def save_model(model, optimizer, args, filepath):
 
 def train(args):
   """Train GPT-2 for paraphrase detection on the Quora dataset."""
-  device = torch.device('cuda') if args.use_gpu else torch.device('cpu')
+  if args.use_gpu:
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+    elif torch.backends.mps.is_available():
+        print('using mps!')
+        device = torch.device("mps")
+    else:
+        device = torch.device("cpu")
+  else:
+      device = torch.device("cpu")
   # Create the data and its corresponding datasets and dataloader.
   sonnet_dataset = SonnetsDataset(args.sonnet_path)
   sonnet_dataloader = DataLoader(sonnet_dataset, shuffle=True, batch_size=args.batch_size,
@@ -191,7 +201,16 @@ def train(args):
 
 @torch.no_grad()
 def generate_submission_sonnets(args):
-  device = torch.device('cuda') if args.use_gpu else torch.device('cpu')
+  if args.use_gpu:
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+    elif torch.backends.mps.is_available():
+        print('using mps!')
+        device = torch.device("mps")
+    else:
+        device = torch.device("cpu")
+  else:
+      device = torch.device("cpu")
   saved = torch.load(f'{args.epochs-1}_{args.filepath}', weights_only=False)
 
   model = SonnetGPT(saved['args'])

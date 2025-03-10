@@ -17,7 +17,8 @@ def unfreeze_last(model, verbose=False):
     "Function that unfreezes the last layer of a model"  
     last_layer_name, _ = list(model.named_modules())[-1]
     for name, module in model.named_children():
-        if name == last_layer_name:
+        print(name)
+        if name == last_layer_name or name == 'gpt.word_embedding':
             for param in module.parameters():
                 param.requires_grad = True
     if verbose:
