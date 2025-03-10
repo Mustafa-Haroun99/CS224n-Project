@@ -127,6 +127,8 @@ def train(args, experiment_id=1):
   if args.debug:
       print("\033[91m############### Debugging mode  is ON#############\033[0m")
       DEBUGGING = args.debug
+  else:
+      DEBUGGING = False
   writer = SummaryWriter(f'{experiment_path}_{experiment_id}')
   save_model_dir = args.filepath.replace('.pt', f'')
   print(f"Saving model to {save_model_dir}")
