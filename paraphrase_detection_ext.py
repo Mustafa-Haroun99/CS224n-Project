@@ -182,7 +182,6 @@ def train(args, experiment_id=1):
       else:
           freeze_model(model, weights_path)
       unfreeze_last(model)
-      print(model)
       model = model.to(device)
   
   # Applying Jacobian Regularization
