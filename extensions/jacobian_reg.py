@@ -82,11 +82,4 @@ class JacobianReg(nn.Module):
         grad_x, = torch.autograd.grad(flat_y, x, flat_v, 
                                         retain_graph=True, 
                                         create_graph=create_graph)
-
-        # Apply clipping to the gradients
-        max_norm = 1.0  
-        grad_norm = grad_x.norm()
-        if grad_norm > max_norm:
-            grad_x = grad_x * (max_norm / grad_norm)
-            
         return grad_x
