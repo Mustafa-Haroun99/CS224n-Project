@@ -5,10 +5,9 @@ class LoraLayer(torch.nn.Module):
     def __init__(self, in_dim, out_dim, rank, alpha):
         super(LoraLayer, self).__init__()
         self.A = torch.nn.Parameter(torch.Tensor(in_dim, rank))
-        self.B = torch.nn.Parameter(torch.Tensor(rank, out_dim))
+        self.B = torch.nn.Parameter(torch.zeros(rank, out_dim))
         self.alpha = alpha
         torch.nn.init.kaiming_uniform_(self.A, a=math.sqrt(5))
-        torch.nn.init.kaiming_uniform_(self.B, a=math.sqrt(5))
 
     def forward(self, x):
         # Compute the output of the LoraLayer.

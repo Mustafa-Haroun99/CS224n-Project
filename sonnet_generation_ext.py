@@ -234,7 +234,7 @@ def train(args, experiment_id=1):
     total_steps = steps_per_epoch * total_epochs
     scheduler = get_cosine_schedule_with_warmup(
     optimizer,
-    num_warmup_steps=100,
+    num_warmup_steps=int(0.1 * total_steps),
     num_training_steps=total_steps)
     if args.verbose:
         print_requires_grad(model)
@@ -428,12 +428,12 @@ def get_args():
     parser.add_argument("--n_proj", type=int, default=1) # keep this as it is
     # LoRA parameters
     parser.add_argument("--lora", action='store_true')
-    parser.add_argument("--rank", type=int, default=16)
-    parser.add_argument("--alpha", type=int, default=16)
+    parser.add_argument("--rank", type=int, default=32)
+    parser.add_argument("--alpha", type=int, default=32)
     ### QLoRA Parameters
     parser.add_argument("--qlora", action='store_true')
-    parser.add_argument("--q_rank", type=int, default=8)
-    parser.add_argument("--q_alpha", type=int, default=16)
+    parser.add_argument("--q_rank", type=int, default=16)
+    parser.add_argument("--q_alpha", type=int, default=32)
     # Spectrum Parameters
     parser.add_argument("--spectrum", action='store_true')
     parser.add_argument("--top_percent", type=int, default=25)

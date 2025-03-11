@@ -190,7 +190,7 @@ def train(args, experiment_id=1):
   total_steps = steps_per_epoch * total_epochs
   scheduler = get_cosine_schedule_with_warmup(
     optimizer,
-    num_warmup_steps=100,
+    num_warmup_steps=int(0.1 * total_steps),
     num_training_steps=total_steps)
 
   print_requires_grad(model)
