@@ -1,0 +1,489 @@
+'''
+Paraphrase detection for GPT starter code.
+
+Consider:
+ - ParaphraseGPT: Your implementation of the GPT-2 classification model.
+ - train: Training procedure for ParaphraseGPT on the Quora paraphrase detection dataset.
+ - test: Test procedure. This function generates the required files for your submission.
+
+Running:
+  `python paraphrase_detection.py --use_gpu`
+trains and evaluates your ParaphraseGPT model and writes the required submission files.
+'''
+
+from datetime import datetime
+import os
+import random
+import argparse
+import random
+import json
+
+import numpy as np
+import torch.nn.functional as F
+import torch
+from torch import nn
+from torch.utils.data import DataLoader
+from tqdm import tqdm
+from torch.utils.tensorboard import SummaryWriter
+from transformers import get_cosine_schedule_with_warmup
+
+from datasets import (
+  ParaphraseDetectionDataset,
+  ParaphraseDetectionTestDataset,
+  load_paraphrase_data
+)
+# Local Imports
+from evaluation import model_eval_paraphrase, model_test_paraphrase
+from models.gpt2 import GPT2Model
+from extensions.lora_layer import replace_linear_with_lora, freeze_all_but_last
+from extensions.spectrum import freeze_model, unfreeze_last
+from extensions.jacobian_reg import JacobianReg
+from extensions.pipeline_utils import store_txt_experiment_data,    generate_experiment_id, keep_latest_epoch_checkpoint, print_requires_grad
+from extensions.qlora_layer import replace_linear_with_qlora
+from extensions.smart_pytorch import SMARTLoss
+from extensions.smart_loss import kl_loss, sym_kl_loss
+from extensions.dropout_modifier import modify_model_dropout
+from extensions.early_stopper import EarlyStopping
+from optimizer import AdamW
+
+
+TQDM_DISABLE = False
+DEBUGGING = False
+
+
+# Fix the random seed.
+def seed_everything(seed=11711):
+  random.seed(seed)
+  np.random.seed(seed)
+  torch.manual_seed(seed)
+  torch.cuda.manual_seed(seed)
+  torch.cuda.manual_seed_all(seed)
+  torch.backends.cudnn.benchmark = False
+  torch.backends.cudnn.deterministic = True
+
+class ParaphraseGPT(nn.Module):
+  """Your GPT-2 Model designed for paraphrase detection."""
+
+  def __init__(self, args):
+    super().__init__()
+    self.gpt = GPT2Model.from_pretrained(model=args.model_size, d=args.d, l=args.l, num_heads=args.num_heads)
+    self.paraphrase_detection_head = nn.Linear(args.d, 2)  # Paraphrase detection has two outputs: 1 (yes) or 0 (no).
+
+    # By default, fine-tune the full model.
+    for param in self.gpt.parameters():
+      param.requires_grad = True
+
+  def forward(self, input_ids, attention_mask, return_embeddings=False):
+    """
+    TODO: Predict the label of the token using the paraphrase_detection_head Linear layer.
+
+    We structure the input as:
+
+      'Is "{s1}" a paraphrase of "{s2}"? Answer "yes" or "no": '
+
+    So you want to find the prediction for the next token at the end of this sentence. Optimistically, it will be the
+    token "yes" (byte pair encoding index of 8505) for examples that are paraphrases or "no" (byte pair encoding index
+     of 3919) for examples that are not paraphrases.
+    """
+
+    'Takes a batch of sentences and produces embeddings for them.'
+    outputs = self.gpt(input_ids=input_ids, attention_mask=attention_mask, return_embeddings=return_embeddings)
+    last_hidden_state = outputs['last_hidden_state']
+    logits = self.paraphrase_detection_head(last_hidden_state[:, -1, :])  
+    if return_embeddings:
+      return logits, outputs['embeddings']
+    else:
+      return logits
+    
+
+  def get_embeddings(self, input_ids):
+      return self.gpt.embed(input_ids)
+
+  def forward_with_embeddings(self, embedding_output, attention_mask):
+    outputs = self.gpt.run_transformer(embedding_output, attention_mask=attention_mask)
+    last_hidden_state = outputs['last_hidden_state']
+    logits = self.paraphrase_detection_head(last_hidden_state[:, -1, :])  
+    return logits 
+    ### YOUR CODE HERE
+    
+
+def save_model(model, optimizer, args, filepath):
+  save_info = {
+    'model': model.state_dict(),
+    'optim': optimizer.state_dict(),
+    'args': args,
+    'system_rng': random.getstate(),
+    'numpy_rng': np.random.get_state(),
+    'torch_rng': torch.random.get_rng_state(),
+  }
+
+  torch.save(save_info, filepath)
+  print(f"save the model to {filepath}")
+
+
+def train(args, experiment_id=1):
+  """Train GPT-2 for paraphrase detection on the Quora dataset."""
+  device = torch.device('cuda') if args.use_gpu and torch.cuda.is_available() else torch.device('cpu')
+  experiment_path = args.filepath.replace('.pt', '').replace('experiments/', 'runs/')
+  if args.debug:
+      print("\033[91m############### Debugging mode  is ON#############\033[0m")
+      DEBUGGING = args.debug
+  else:
+      DEBUGGING = False
+  writer = SummaryWriter(f'{experiment_path}_{experiment_id}')
+  save_model_dir = args.filepath.replace('.pt', f'')
+  print(f"Saving model to {save_model_dir}")
+  os.makedirs(save_model_dir, exist_ok=True)
+  # Create the data and its corresponding datasets and dataloader.
+  para_train_data = load_paraphrase_data(args.para_train)
+  para_dev_data = load_paraphrase_data(args.para_dev)
+
+  para_train_data = ParaphraseDetectionDataset(para_train_data, args)
+  para_dev_data = ParaphraseDetectionDataset(para_dev_data, args)
+
+  para_train_dataloader = DataLoader(para_train_data, shuffle=True, batch_size=args.batch_size,
+                                     collate_fn=para_train_data.collate_fn)
+  para_dev_dataloader = DataLoader(para_dev_data, shuffle=False, batch_size=args.batch_size,
+                                   collate_fn=para_dev_data.collate_fn)
+
+  args = add_arguments(args)
+   # Load model if specified
+  if args.load_model:
+      saved = torch.load(args.model_path)
+      model = ParaphraseGPT(saved['args'])
+      model.load_state_dict(saved['model'])
+      print(f"Loaded model from {args.model_path}")
+  else:
+      model = ParaphraseGPT(args)
+ 
+ # Adding change in dropout rates
+  if args.change_dropout:
+      modify_model_dropout(model, args.dropout, args.attn_dropout)
+  
+  # Early stopping
+  # early_stopping = EarlyStopping(patience=args.patience, delta=args.delta)
+  
+  # Applying LoRA
+  if args.lora:
+      freeze_all_but_last(model)
+      model = replace_linear_with_lora(model, args.rank, args.alpha)
+      print(model)
+  if args.qlora:
+    model = replace_linear_with_qlora(model, args.q_rank, args.q_alpha)
+    unfreeze_last(model)
+    print(model)
+   
+  model = model.to(device)
+  # Applying Spectrum
+  if args.spectrum:
+      weights_path = f"extensions/spectrum/model_snr_results/snr_results_gpt2_unfrozenparameters_{args.top_percent}percent.yaml"
+      if not os.path.exists(weights_path):
+          raise FileNotFoundError(f"File {weights_path} does not exist.")
+      else:
+          freeze_model(model, weights_path)
+      unfreeze_last(model)
+      model = model.to(device)
+  
+  # Applying Jacobian Regularization
+  if args.jacobian:
+      jacobian_reg = JacobianReg(args.n_proj)
+  
+  # Smart Regularizer instantiation
+  if args.smart:
+      smart_loss = SMARTLoss(model.forward_with_embeddings,kl_loss, loss_last_fn = sym_kl_loss, num_steps=args.num_steps, step_size=args.step_size_sm, epsilon=args.epsilon_sm, noise_var=args.noise_var_sm)
+   
+  lr = args.lr
+  optimizer = AdamW(model.parameters(), lr=lr, weight_decay=0.)
+  best_dev_acc = 0
+  total_epochs = args.epochs                         
+  steps_per_epoch = len(para_train_dataloader)   
+  # Total steps for the entire training process
+  total_steps = steps_per_epoch * total_epochs
+  scheduler = get_cosine_schedule_with_warmup(
+  optimizer,
+  num_warmup_steps=500,
+  num_training_steps=total_steps)
+
+  print_requires_grad(model)
+  # import sys; sys.exit()  
+  # Run for the specified number of epochs.
+  print(f'This is the device {device}')
+  for epoch in range(args.epochs):
+    model.train()
+    train_loss = 0
+    num_batches = 0
+    accuracy = 0
+    perplexity = 0
+    smart_loss_train = 0
+    jacobian_loss_train = 0
+    I = 0
+    for batch in tqdm(para_train_dataloader, desc=f'train-{epoch}', disable=TQDM_DISABLE):
+    #   if DEBUGGING:
+    #     if I==10: # FOR TESTING
+    #       break
+    #     I+=1
+    #   # Get the input and move it to the gpu (I do not recommend training this model on CPU).
+    #   b_ids, b_mask, labels = batch['token_ids'], batch['attention_mask'], batch['labels'].flatten()
+    #   b_ids = b_ids.to(device)
+    #   b_mask = b_mask.to(device)
+    #   labels = labels.to(device)
+
+    #   # Compute the loss, gradients, and update the model's parameters.
+    #   optimizer.zero_grad()
+    #   if args.jacobian or args.smart:
+    #       x_embed = model.get_embeddings(b_ids)
+    #       enforce_grad = not x_embed.requires_grad
+    #       if enforce_grad:
+    #          x_embed.requires_grad_(True)
+    #       logits = model.forward_with_embeddings(x_embed, b_mask)
+    #   else:
+    #     logits = model(b_ids, b_mask)
+    #   preds = torch.argmax(logits, dim=1)
+    #   labels = torch.where(labels == 8505, torch.tensor(1, device=device), torch.tensor(0, device=device))
+    #   loss = F.cross_entropy(logits, labels, reduction='mean')
+    #   perplexity += torch.exp(loss).item()
+      
+    #   if args.jacobian:
+    #       jacobian_lss = jacobian_reg(x_embed, logits)
+    #       loss += args.jreg_lambda * jacobian_lss
+    #       jacobian_loss_train += jacobian_lss.item()
+    #   if args.smart:
+    #       sm_loss = smart_loss(x_embed, logits, reshape_required=False, attn_masks=b_mask)
+    #       loss += args.smart_lambda * sm_loss
+    #       smart_loss_train += sm_loss.item()
+    #   accuracy += (preds == labels).sum().item()
+    #   loss.backward()
+    #   optimizer.step()
+    #   scheduler.step()
+
+    #   train_loss += loss.item()
+    #   num_batches += 1
+
+    # train_loss = train_loss / num_batches
+    # accuracy = accuracy / len(para_train_data)
+    dev_acc, dev_f1, _, _ ,_, eval_loss= model_eval_paraphrase(para_dev_dataloader, model, device, return_loss=True, debugging=args.debug)
+    perplexity_eval = torch.exp(eval_loss).item()
+    eval_loss = eval_loss.item()
+
+    ## Tensoboard computations
+    perplexity = perplexity / num_batches
+    current_lr = optimizer.param_groups[0]['lr']
+    writer.add_scalar("Train/Loss", train_loss, epoch)
+    writer.add_scalar("Train/Accuracy", accuracy, epoch)
+    writer.add_scalar("Train/Perplexity", perplexity, epoch)
+    writer.add_scalar("Dev/Loss", eval_loss, epoch)
+    writer.add_scalar("Dev/Perplexity", perplexity_eval, epoch)
+    writer.add_scalar("Dev/Accuracy", dev_acc, epoch)
+    writer.add_scalar("Dev/F1", dev_f1, epoch)
+    if args.jacobian:
+      writer.add_scalar("Train/Jacobian_Loss", jacobian_loss_train, epoch)
+    if args.smart:
+      writer.add_scalar("Train/SMART_Loss", smart_loss_train, epoch)
+    writer.add_scalar("Learning Rate", current_lr, epoch)
+
+    if dev_acc > best_dev_acc:
+      best_dev_acc = dev_acc
+      save_model_to = save_model_dir + f'/paraphrase_{experiment_id}_{epoch}.pt'
+      save_model(model, optimizer, args, save_model_to)
+      keep_latest_epoch_checkpoint(args.filepath.replace('.pt', '/'), epoch)
+      best_epoch = epoch
+    if epoch == 0:
+      save_model_to = save_model_dir + f'/paraphrase_{experiment_id}_{epoch}.pt'
+      save_model(model, optimizer, args, save_model_to)
+      best_epoch = epoch
+       
+    # early_stopping(dev_acc, model)
+    # if early_stopping.early_stop:
+    #     print("Early stopping")
+    #     break
+        
+
+    print(f"Epoch {epoch}: train loss :: {train_loss :.3f}, dev acc :: {dev_acc :.3f}")
+
+  
+  metrics= {
+        'experiment_id': experiment_id,
+        'epochs': args.epochs,
+        'lr': args.lr,
+        "best_dev_acc": best_dev_acc,
+        "best_dev_f1": dev_f1,
+        'batch_size': args.batch_size,
+        'model_size': args.model_size,
+        'j_reg': args.jacobian,
+        'jreg_lambda': args.jreg_lambda,
+        'n_proj': args.n_proj,
+        'lora': args.lora,
+        'rank': args.rank,
+        'alpha': args.alpha,
+        'qlora': args.qlora,
+        'q_rank': args.q_rank,
+        'q_alpha': args.q_alpha,
+        'top_percent': args.top_percent,
+        'spectrum': args.spectrum,
+        'smart': args.smart,
+        'smart_lambda': args.smart_lambda,
+        'loss_train': train_loss,
+        'perplexity_train': perplexity,
+        'last_epoch': best_epoch, 
+        'dropout': args.dropout,
+        'attn_dropout': args.attn_dropout
+        }
+  return metrics
+
+@torch.no_grad()
+def test(args, metrics=None):
+  """Evaluate your model on the dev and test datasets; save the predictions to disk."""
+  # device = torch.device('cuda') if args.use_gpu else torch.device('cpu')
+  if args.use_gpu:
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+    elif torch.backends.mps.is_available():
+        device = torch.device("mps")
+    else:
+        device = torch.device("cpu")
+  else:
+      device = torch.device("cpu")
+  last_epoch = metrics['last_epoch']
+  load_file_path = args.filepath.replace('.pt', f'/paraphrase_{experiment_id}_{last_epoch}.pt')
+  saved = torch.load(load_file_path)
+
+  model = ParaphraseGPT(saved['args'])
+  if args.lora:
+        freeze_all_but_last(model)
+        model = replace_linear_with_lora(model, args.rank, args.alpha)
+  if args.qlora:
+      model = replace_linear_with_qlora(model, args.q_rank, args.q_alpha)
+      unfreeze_last(model)
+      print(model)
+      for name, param in model.named_parameters():
+          print(f"Layer: {name} | Requires Grad: {param.requires_grad}")
+      model.to(device)
+      # Check if the model contains `bnb.nn.Linear4bit` before loading
+      for name, module in model.named_modules():
+          if isinstance(module, torch.nn.Linear):
+              print(f"Warning: {name} is torch.nn.Linear but expected Linear4bit!")
+  if args.qlora:
+        from extensions.pipeline_utils import load_qlora_state_dict
+        model = load_qlora_state_dict(model, saved['model'])
+  else:
+    model.load_state_dict(saved['model'])
+  model = model.to(device)
+  model.eval()
+  print(f"Loaded model to test from {args.filepath}")
+
+  para_dev_data = load_paraphrase_data(args.para_dev)
+  para_test_data = load_paraphrase_data(args.para_test, split='test')
+
+  para_dev_data = ParaphraseDetectionDataset(para_dev_data, args)
+  para_test_data = ParaphraseDetectionTestDataset(para_test_data, args)
+
+  para_dev_dataloader = DataLoader(para_dev_data, shuffle=False, batch_size=args.batch_size,
+                                   collate_fn=para_dev_data.collate_fn)
+  para_test_dataloader = DataLoader(para_test_data, shuffle=True, batch_size=args.batch_size,
+                                    collate_fn=para_test_data.collate_fn)
+
+  dev_para_acc, _, dev_para_y_pred, _, dev_para_sent_ids = model_eval_paraphrase(para_dev_dataloader, model, device, debugging=args.debug)
+  print(f"dev paraphrase acc :: {dev_para_acc :.3f}")
+  test_para_y_pred, test_para_sent_ids = model_test_paraphrase(para_test_dataloader, model, device, debugging=args.debug)
+  store_predictions_path_dev = args.filepath.replace('.pt', args.para_dev_out.replace('predictions/', '/'))
+  store_predictions_path_test = args.filepath.replace('.pt', args.para_test_out.replace('predictions/', '/'))
+  label_mapping = {0: 3919, 1: 8505}
+  with open(store_predictions_path_dev, "w+") as f:
+    f.write(f"id \t Predicted_Is_Paraphrase \n")
+    for p, s in zip(dev_para_sent_ids, dev_para_y_pred):
+      f.write(f"{p}, {label_mapping[s]} \n")
+
+  with open(store_predictions_path_test, "w+") as f:
+    f.write(f"id \t Predicted_Is_Paraphrase \n")
+    for p, s in zip(test_para_sent_ids, test_para_y_pred):
+      f.write(f"{p}, {label_mapping[s]} \n")
+  if metrics is not None:
+      metrics['dev_para_acc'] = dev_para_acc # TODO: ADD METRICS FOR THE  TEST SET
+  return metrics
+
+
+
+def get_args():
+  parser = argparse.ArgumentParser()
+
+  parser.add_argument("--para_train", type=str, default="data/quora-train.csv")
+  parser.add_argument("--para_dev", type=str, default="data/quora-dev.csv")
+  parser.add_argument("--para_test", type=str, default="data/quora-test-student.csv")
+  parser.add_argument("--para_dev_out", type=str, default="predictions/para-dev-output.csv")
+  parser.add_argument("--para_test_out", type=str, default="predictions/para-test-output.csv")
+  parser.add_argument("--seed", type=int, default=11711)
+  parser.add_argument("-e", "--epochs", type=int, default=10)
+  parser.add_argument("--use_gpu", action='store_true', default=True)
+
+  parser.add_argument("--batch_size", help='sst: 64, cfimdb: 8 can fit a 12GB GPU', type=int, default=8)
+  parser.add_argument("--lr", type=float, help="learning rate", default=1e-5)
+  parser.add_argument("--model_size", type=str,
+                      help="The model size as specified on hugging face. DO NOT use the xl model.",
+                      choices=['gpt2', 'gpt2-medium', 'gpt2-large'], default='gpt2')
+  
+  # Jacobian Regularization Parameters
+  parser.add_argument("--jacobian", action='store_true')
+  parser.add_argument("--jreg_lambda", type=float, default=0.1)
+  parser.add_argument("--n_proj", type=int, default=1) # keep this as it is
+  # LoRA parameters
+  parser.add_argument("--lora", action='store_true')
+  parser.add_argument("--rank", type=int, default=16)
+  parser.add_argument("--alpha", type=int, default=16)
+  ### QLoRA Parameters
+  parser.add_argument("--qlora", action='store_true')
+  parser.add_argument("--q_rank", type=int, default=8)
+  parser.add_argument("--q_alpha", type=int, default=16)
+  # Spectrum Parameters
+  parser.add_argument("--spectrum", action='store_true')
+  parser.add_argument("--top_percent", type=int, default=25)
+  # SMART regularizer Parameters
+  parser.add_argument("--smart", action='store_true')  
+  parser.add_argument("--num_steps", type=int, default=1)
+  parser.add_argument("--step_size_sm", type=float, default=1e-3)
+  parser.add_argument("--epsilon_sm", type=float, default=1e-6)
+  parser.add_argument("--noise_var_sm", type=float, default=1e-5)
+  parser.add_argument("--smart_lambda", type=float, default=1e-5)
+  ### Early Stopping Patience
+  parser.add_argument("--patience", type=int, default=15)
+  parser.add_argument("--delta", type=float, default=1e-5)
+  ## Dropout Parameter Experiments
+  parser.add_argument("--change_dropout", action='store_true')
+  parser.add_argument("--dropout", type=float, default=0.1)
+  parser.add_argument('--attn_dropout', type=float, default=0.1)
+  parser.add_argument('--debug', action='store_true')
+  ## Loading a Saved Model 
+  parser.add_argument('--load_model', action='store_true')
+  parser.add_argument('--model_path', type=str, default='', help='Path to load pre-trained model')
+
+  args = parser.parse_args()
+  return args
+
+
+def add_arguments(args):
+  """Add arguments that are deterministic on model size."""
+  if args.model_size == 'gpt2':
+    args.d = 768
+    args.l = 12
+    args.num_heads = 12
+  elif args.model_size == 'gpt2-medium':
+    args.d = 1024
+    args.l = 24
+    args.num_heads = 16
+  elif args.model_size == 'gpt2-large':
+    args.d = 1280
+    args.l = 36
+    args.num_heads = 20
+  else:
+    raise Exception(f'{args.model_size} is not supported.')
+  return args
+
+
+if __name__ == "__main__":
+  experiment_id = generate_experiment_id()
+  args = get_args()
+  os.makedirs('experiments/paraphrase/', exist_ok=True)
+  model_path = f'paraphrase/{experiment_id}.pt'
+  args.filepath =  os.path.join('experiments', model_path)
+  seed_everything(args.seed)  # Fix the seed for reproducibility.
+  metrics = train(args, experiment_id)
+  print('Metrics have been stored in experiments/paraphrase_metrics.txt')
