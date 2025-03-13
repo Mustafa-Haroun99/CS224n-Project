@@ -217,7 +217,7 @@ def train(args, experiment_id=1):
     smart_loss_train = 0
     jacobian_loss_train = 0
     I = 0
-    for batch in tqdm(para_train_dataloader, desc=f'train-{epoch}', disable=TQDM_DISABLE):
+    # for batch in tqdm(para_train_dataloader, desc=f'train-{epoch}', disable=TQDM_DISABLE):
     #   if DEBUGGING:
     #     if I==10: # FOR TESTING
     #       break
