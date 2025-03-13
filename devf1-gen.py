@@ -262,6 +262,7 @@ def train(args, experiment_id=1):
     # train_loss = train_loss / num_batches
     # accuracy = accuracy / len(para_train_data)
     dev_acc, dev_f1, _, _ ,_, eval_loss= model_eval_paraphrase(para_dev_dataloader, model, device, return_loss=True, debugging=args.debug)
+    print("Dev_acc:", dev_acc, "dev_f1:", dev_f1)
     perplexity_eval = torch.exp(eval_loss).item()
     eval_loss = eval_loss.item()
 
