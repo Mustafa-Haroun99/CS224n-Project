@@ -487,7 +487,7 @@ if __name__ == "__main__":
     experiment_id = generate_experiment_id()
     args = get_args()
     ### Fixing Paths for Dev ###
-    args.held_out_sonnet_path = 'data/sonnets_held_out_dev.txt'
+    args.held_out_sonnet_path = 'data/sonnets_held_out.txt'
     args.sonnet_out = 'predictions/generated_sonnets_dev.txt'
     ## Generating Experiment ID and Modifying Paths
     os.makedirs('experiments/sonnet/', exist_ok=True)
