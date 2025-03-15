@@ -213,7 +213,8 @@ def train(args, experiment_id=1):
     
     # Smart Regularizer instantiation
     if args.smart:
-        smart_loss = SMARTLoss(model.forward_with_embeddings,kl_loss, loss_last_fn = sym_kl_loss, num_steps=args.num_steps, step_size=args.step_size_sm, epsilon=args.epsilon_sm, noise_var=args.noise_var_sm)
+        loss_smart= nn.MSELoss()
+        smart_loss = SMARTLoss(model.forward_with_embeddings,loss_smart, loss_last_fn = loss_smart, num_steps=args.num_steps, step_size=args.step_size_sm, epsilon=args.epsilon_sm, noise_var=args.noise_var_sm)
 
     # Applying LoRA
     if args.lora:
